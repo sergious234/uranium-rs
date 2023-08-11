@@ -1,6 +1,23 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+pub enum DownloadError {
+    #[error("Error while writting the files")]
+    WriteError(std::io::Error),
+    #[error("Error downloading files")]
+    DownloadError,
+    #[error("Error making the requests")]
+    RequestError
+}
+
+
+impl std::convert::From<std::io::Error> for DownloadError {
+    fn from(value: std::io::Error) -> Self {
+        DownloadError::WriteError(value)
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum ModpackError {
     #[error("Wrong file format")]
     WrongFileFormat,
