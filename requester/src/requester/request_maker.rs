@@ -8,8 +8,6 @@ use tokio::{
 
 use crate::mod_searcher::Method;
 
-use super::load_headers;
-
 pub trait Req {
     fn get(
         &self,
@@ -32,13 +30,12 @@ impl RinthRequester {
             headers: HeaderMap::new(),
         };
 
+        let (_, rinth_api_key) = env::vars()
+            .find(|(v, _)| v == "RINTH_API_KEY")
+            .unwrap_or_default();
 
-        let (_, rinth_api_key) = env::vars().find(|(v,_)| v =="RINTH_API_KEY").unwrap_or_default();
-
-        req.headers.insert(
-            "x-api-key",
-            rinth_api_key.parse().unwrap(),
-        );
+        req.headers
+            .insert("x-api-key", rinth_api_key.parse().unwrap());
         req.headers
             .insert("Content-Type", "application/json".parse().unwrap());
         req.headers
@@ -82,15 +79,12 @@ impl CurseRequester {
             headers: HeaderMap::new(),
         };
 
+        let (_, curse_api_key) = env::vars()
+            .find(|(v, _)| v == "CURSE_API_KEY")
+            .unwrap_or_default();
 
-        let (_, curse_api_key) = env::vars().find(|(v,_)| v =="CURSE_API_KEY").unwrap_or_default();
-
-        req.headers.insert(
-            "x-api-key",
-            curse_api_key
-                .parse()
-                .unwrap(),
-        );
+        req.headers
+            .insert("x-api-key", curse_api_key.parse().unwrap());
         req.headers
             .insert("Content-Type", "application/json".parse().unwrap());
         req.headers

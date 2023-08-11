@@ -6,7 +6,6 @@ use downloaders::rinth_downloader::*;
 use error::{MakerError, ModpackError};
 use log::info;
 use modpack_maker::maker::{ModpackMaker, State};
-use searcher::rinth::SearchType;
 use variables::constants::*;
 
 pub mod downloaders;
@@ -79,6 +78,10 @@ pub fn set_threads(t: usize) {
 }
 
 /// Init the logger and make a log.txt file to write logs content.
+///
+/// If this function is not called then there will be no
+/// log.txt or any kind of debug info/warn/warning message will 
+/// be show in console.
 pub fn init_logger() {
     use chrono::prelude::Local;
     use simplelog::*;
@@ -101,45 +104,3 @@ pub fn init_logger() {
     .unwrap();
 }
 
-pub fn request_arg_parser(args: &[String]) -> Option<searcher::rinth::SearchType> {
-    match args
-        .iter()
-        .position(|f| f == SHORT_REQUEST || f == LONG_REQUEST)
-    {
-        Some(index) => match args[index + 1].as_str() {
-            QUERY => Some(SearchType::QUERY(args[index + 2].clone())),
-            FOR => Some(SearchType::FOR(
-                args[index + 2]
-                    .parse()
-                    .unwrap_or_else(|_| panic!("{} not a number", args[index + 2])),
-                args[index + 3]
-                    .parse()
-                    .unwrap_or_else(|_| panic!("{} not a number", args[index + 3])),
-            )),
-            VERSION => Some(SearchType::VERSION(args[index + 1].clone())),
-            VERSIONS => Some(SearchType::VERSIONS(args[index + 1].clone())),
-            MOD => Some(SearchType::MOD(args[index + 1].clone())),
-            PROJECT => Some(SearchType::PROJECT(args[index + 1].clone())),
-            RESOURCEPACKS => Some(SearchType::RESOURCEPACKS(
-                args[index + 2]
-                    .parse()
-                    .unwrap_or_else(|_| panic!("{} not a number", args[index + 3])),
-                args[index + 3]
-                    .parse()
-                    .unwrap_or_else(|_| panic!("{} not a number", args[index + 3])),
-            )),
-
-            MODPACKS => Some(SearchType::MODPACKS(
-                args[index + 2]
-                    .parse()
-                    .unwrap_or_else(|_| panic!("{} not a number", args[index + 3])),
-                args[index + 3]
-                    .parse()
-                    .unwrap_or_else(|_| panic!("{} not a number", args[index + 3])),
-            )),
-
-            _ => panic!("Invalid request type !"),
-        },
-        None => None,
-    }
-}

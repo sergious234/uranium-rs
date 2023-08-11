@@ -5,6 +5,8 @@ use mine_data_strutcs::url_maker::maker::ModRinth;
 
 use crate::requester::request_maker::{CurseRequester, Req};
 
+static REPO: &str = "https://github.com/sergious234/uranium-rs (sergious234@gmail.com)";
+
 pub enum Method {
     GET,
     POST,
@@ -34,9 +36,7 @@ pub fn search_mod_by_id(id: &str) -> task::JoinHandle<reqwest::Response> {
             .get(url)
             .header(
                 reqwest::header::USER_AGENT,
-                "github.com/ElPsyKoongroo/Uranium4Linux (sergious234@gmail.com)"
-                    .parse::<reqwest::header::HeaderValue>()
-                    .unwrap(),
+                REPO.parse::<reqwest::header::HeaderValue>().unwrap(),
             )
             .send()
             .await
@@ -53,9 +53,7 @@ pub fn search_version_by_id(id: &str) -> task::JoinHandle<reqwest::Response> {
             .get(url)
             .header(
                 reqwest::header::USER_AGENT,
-                "github.com/ElPsyKoongroo/Uranium4Linux (sergious234@gmail.com)"
-                    .parse::<reqwest::header::HeaderValue>()
-                    .unwrap(),
+                REPO.parse::<reqwest::header::HeaderValue>().unwrap(),
             )
             .send()
             .await
@@ -74,9 +72,7 @@ pub fn search_by_url(
             .get(url)
             .header(
                 reqwest::header::USER_AGENT,
-                "github.com/ElPsyKoongroo/Uranium4Linux (sergious234@gmail.com)"
-                    .parse::<reqwest::header::HeaderValue>()
-                    .unwrap(),
+                REPO.parse::<reqwest::header::HeaderValue>().unwrap(),
             )
             .send(),
     )
@@ -92,9 +88,7 @@ pub fn search_by_url_owned(
             .get(&url)
             .header(
                 reqwest::header::USER_AGENT,
-                "github.com/ElPsyKoongroo/Uranium4Linux (sergious234@gmail.com)"
-                    .parse::<reqwest::header::HeaderValue>()
-                    .unwrap(),
+                REPO.parse::<reqwest::header::HeaderValue>().unwrap(),
             )
             .send()
             .await
@@ -115,9 +109,7 @@ where
             .json(content)
             .header(
                 reqwest::header::USER_AGENT,
-                "github.com/ElPsyKoongroo/Uranium4Linux (sergious234@gmail.com)"
-                    .parse::<reqwest::header::HeaderValue>()
-                    .unwrap(),
+                REPO.parse::<reqwest::header::HeaderValue>().unwrap(),
             )
             .send(),
     )
