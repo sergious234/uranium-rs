@@ -1,5 +1,5 @@
 [package]
-name = "uranium4Linux"
+name = "uranium"
 version = "0.1.0"
 edition = "2021"
 
