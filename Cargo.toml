@@ -1,0 +1,17 @@
+[workspace.dependencies]
+serde = { version = "1.0.147", features = ["derive"] }
+reqwest = { version = "0.11.13", features = ["json"] }
+tokio = { version = "1.29.1", features = ["full"] }
+edition = "2021"
+
+[workspace]
+members = ["uranium", "requester", "mine_data_strutcs"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[profile.dev]
+opt-level = 0
+overflow-checks = false
+debug = 2
+incremental = true
+debug-assertions = true
