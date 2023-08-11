@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::{downloaders::updater::update_modpack, variables::constants::*};
+use crate::{downloaders::update_modpack, variables::constants::*};
 
 #[allow(unused)]
 #[deprecated]
