@@ -178,7 +178,7 @@ pub async fn download_sourcers(
         requester,
     );
 
-    gen_downloader.start().await;
+    let _ = gen_downloader.start().await;
 
     let n_files = resources.objects.len();
     let mut i = 0;
@@ -239,7 +239,7 @@ pub async fn download_libraries(
         requester,
     );
 
-    gen_downloader.start().await;
+    let _ = gen_downloader.start().await;
 }
 
 pub async fn donwload_minecraft(

@@ -53,7 +53,7 @@ pub async fn curse_modpack_downloader<I: AsRef<Path>>(
     // All the above code was just for obtaining the download urls
     // and the names.
 
-    Downloader::new(
+    let _ = Downloader::new(
         Arc::new(download_urls),
         names,
         Arc::new(mods_path),
