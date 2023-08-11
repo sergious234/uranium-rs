@@ -2,7 +2,7 @@
 
 use std::{io::Write, path::Path};
 
-use downloaders::rinth_downloader::*;
+use downloaders::RinthDownloader;
 use error::{MakerError, ModpackError};
 use log::info;
 use modpack_maker::maker::{ModpackMaker, State};
@@ -17,7 +17,6 @@ mod code_functions;
 mod hashes;
 mod variables;
 mod zipper;
-
 
 /// # Easy to go function
 ///
@@ -59,7 +58,7 @@ pub async fn rinth_pack_download<I: AsRef<Path>>(
 
     loop {
         let _ = std::io::stdout().flush();
-        if rinth_downloader.chunk().await.is_some() {
+        if rinth_downloader.chunk().await.is_ok() {
             print!("\r{} / {}      ", i, total);
             i += 1;
         } else {
@@ -80,7 +79,7 @@ pub fn set_threads(t: usize) {
 /// Init the logger and make a log.txt file to write logs content.
 ///
 /// If this function is not called then there will be no
-/// log.txt or any kind of debug info/warn/warning message will 
+/// log.txt or any kind of debug info/warn/warning message will
 /// be show in console.
 pub fn init_logger() {
     use chrono::prelude::Local;
@@ -103,4 +102,3 @@ pub fn init_logger() {
     ])
     .unwrap();
 }
-
