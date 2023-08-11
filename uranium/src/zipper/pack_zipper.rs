@@ -53,14 +53,14 @@ pub fn compress_pack(name: &str, path: &Path, raw_mods: &[String]) -> Result<(),
     // Iter through all the files and sub-directories in "config/" and set the file type.
     search_files(path, &PathBuf::from(CONFIG_DIR), &mut config_files)?;
 
-    add_files_to_zip(path, &mut config_files, &mut zip, options);
+    add_files_to_zip(path, &mut config_files, &mut zip, options)?;
 
     // Add the modpack_temp.json file
     let modpack_json = File::open(constants::RINTH_JSON).unwrap();
     let modpack_bytes = modpack_json.bytes().flatten().collect::<Vec<u8>>();
 
     // Add the hardcoded .jar mods
-    add_raw_mods(path, &mut zip, raw_mods, options);
+    add_raw_mods(path, &mut zip, raw_mods, options)?;
 
     // Finally add the modpack.json file
     zip.start_file(constants::RINTH_JSON, options)?;
@@ -127,10 +127,11 @@ fn add_files_to_zip(
     config_files: &mut Vec<UraniumFile>,
     zip: &mut ZipWriter<File>,
     options: FileOptions,
-) {
+) -> Result<(), ZipError>{
     for file in config_files {
-        match_file(minecraft_path, zip, options, file);
+        match_file(minecraft_path, zip, options, file)?;
     }
+    Ok(())
 }
 
 fn match_file(
@@ -138,25 +139,26 @@ fn match_file(
     zip: &mut ZipWriter<File>,
     options: FileOptions,
     file: &mut UraniumFile,
-) {
+) -> Result<(), ZipError> {
     let overrides: PathBuf = PathBuf::from("overrides/");
     match file.get_type() {
         FileType::Data => {
             let absolute_path = root_path.to_owned().join(file.get_absolute_path());
             let rel_path = overrides.join(file.get_absolute_path());
-            append_config_file(&absolute_path, &rel_path, zip, options);
+            append_config_file(&absolute_path, &rel_path, zip, options)?;
         }
 
         FileType::Dir => {
             zip.add_directory(
                 "overrides/".to_owned() + &file.get_path() + &file.get_name(),
                 options,
-            )
-            .unwrap();
+            )?
         }
 
         FileType::Other => {}
-    }
+    };
+
+    Ok(())
 }
 
 fn append_config_file(
