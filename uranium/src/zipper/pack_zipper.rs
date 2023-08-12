@@ -152,7 +152,7 @@ fn match_file(
             zip.add_directory(
                 "overrides/".to_owned() + &file.get_path() + &file.get_name(),
                 options,
-            )?
+            )?;
         }
 
         FileType::Other => {}
@@ -189,7 +189,7 @@ fn append_config_file(
     // Add the file to the zip
     let _ = zip.start_file(rel_path.as_os_str().to_str().unwrap_or_default(), option);
     let _ = zip.write_all(&buffer);
-    return Ok(());
+    Ok(())
 }
 
 fn add_raw_mods(path: &Path, zip: &mut ZipWriter<File>, raw_mods: &[String], options: FileOptions) -> Result<(), ZipError> {
