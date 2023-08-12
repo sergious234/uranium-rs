@@ -1,21 +1,5 @@
 use thiserror::Error;
 
-#[derive(Debug, Error)]
-pub enum DownloadError {
-    #[error("Error while writting the files")]
-    WriteError(std::io::Error),
-    #[error("Error downloading files")]
-    DownloadError,
-    #[error("Error making the requests")]
-    RequestError
-}
-
-
-impl std::convert::From<std::io::Error> for DownloadError {
-    fn from(value: std::io::Error) -> Self {
-        DownloadError::WriteError(value)
-    }
-}
 
 #[derive(Debug, Error)]
 pub enum ModpackError {
@@ -27,6 +11,18 @@ pub enum ModpackError {
     FileNotFound,
     #[error("Cant create dir")]
     CantCreateDir,
+    #[error("Error while writting the files")]
+    WriteError(std::io::Error),
+    #[error("Error downloading files")]
+    DownloadError,
+    #[error("Error making the requests")]
+    RequestError,
+}
+
+impl std::convert::From<std::io::Error> for ModpackError {
+    fn from(value: std::io::Error) -> Self {
+        ModpackError::WriteError(value)
+    }
 }
 
 #[derive(Debug, Error)]
@@ -36,7 +32,7 @@ pub enum MakerError {
     #[error("Cant remove temp JSON file")]
     CantRemoveJSON,
     #[error("Cant read mods dir")]
-    CantReadModsDir
+    CantReadModsDir,
 }
 
 #[derive(Debug, Error)]
@@ -46,7 +42,7 @@ pub enum ZipError {
     #[error("Zip Error")]
     ZipError(zip::result::ZipError),
     #[error("Io Error")]
-    IoError(std::io::Error)
+    IoError(std::io::Error),
 }
 
 impl std::convert::From<std::io::Error> for ZipError {
@@ -55,10 +51,8 @@ impl std::convert::From<std::io::Error> for ZipError {
     }
 }
 
-
 impl std::convert::From<zip::result::ZipError> for ZipError {
     fn from(e: zip::result::ZipError) -> ZipError {
         ZipError::ZipError(e)
     }
 }
-
