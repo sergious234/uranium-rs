@@ -49,7 +49,7 @@ pub struct ModpackMaker {
 }
 
 impl ModpackMaker {
-    pub fn new<I: AsRef<Path>>(path: &I) -> ModpackMaker {
+    pub fn new<I: AsRef<Path>>(path: I) -> ModpackMaker {
         ModpackMaker {
             path: path.as_ref().to_path_buf(),
             current_state: State::Starting,
@@ -74,7 +74,7 @@ impl ModpackMaker {
 
     /// Can only be used after start method is called.
     ///
-    /// If this methods returns Ok(()) it means the modpack
+    /// If this methods returns `Ok(())` it means the modpack
     /// has been made succecsfully
     pub async fn finish(&mut self) -> Result<(), MakerError> {
         loop {
@@ -99,7 +99,7 @@ impl ModpackMaker {
         self.len() / self.threads
     }
 
-    /// This method will make progress until Ok(State::Finish) is returned
+    /// This method will make progress until `Ok(State::Finish)` is returned
     /// or throw an Err.
     ///
     /// It will return the current State of the process.
@@ -131,12 +131,9 @@ impl ModpackMaker {
             State::Writing => {
                 self.rinth_pack.write_mod_pack_with_name();
 
-                match compress_pack("modpack", &self.path, &self.raw_mods) {
-                    Err(e) => {
-                        error!("Error while compressing the modpack: {}", e);
-                        return Err(MakerError::CantCompress);
-                    }
-                    Ok(_) => {}
+                if let Err(e) = compress_pack("modpack", &self.path, &self.raw_mods) {
+                    error!("Error while compressing the modpack: {}", e);
+                    return Err(MakerError::CantCompress);
                 }
 
                 std::fs::remove_file(constants::RINTH_JSON)
