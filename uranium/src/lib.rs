@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::{io::Write, path::Path};
+use std::path::Path;
 
 use downloaders::RinthDownloader;
 use error::{MakerError, ModpackError};
@@ -52,19 +52,8 @@ pub async fn rinth_pack_download<I: AsRef<Path>>(
     destination_path: I,
 ) -> Result<(), ModpackError> {
     let mut rinth_downloader = RinthDownloader::new(&file_path, &destination_path)?;
-    rinth_downloader.start().await;
-    let total = rinth_downloader.chunks();
-    let mut i = 1;
-
-    loop {
-        let _ = std::io::stdout().flush();
-        if rinth_downloader.chunk().await.is_ok() {
-            print!("\r{} / {}      ", i, total);
-            i += 1;
-        } else {
-            return Ok(());
-        }
-    }
+    rinth_downloader.start().await?;
+    Ok(())
 }
 
 /// This function will set the max number of threads allowed to use
@@ -87,6 +76,7 @@ pub fn init_logger() {
     use std::fs::File;
 
     let log_file_name = format!("log_{}.txt", Local::now().format("%H-%M-%S_%d-%m-%Y"));
+    let lastest_log_file = "lastest_log_file";
     CombinedLogger::init(vec![
         TermLogger::new(
             LevelFilter::Warn,
@@ -98,6 +88,11 @@ pub fn init_logger() {
             LevelFilter::Info,
             Config::default(),
             File::create(log_file_name).unwrap(),
+        ),
+        WriteLogger::new(
+            LevelFilter::Info,
+            Config::default(),
+            File::create(lastest_log_file).unwrap(),
         ),
     ])
     .unwrap();
