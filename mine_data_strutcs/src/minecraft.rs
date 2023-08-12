@@ -116,9 +116,23 @@ struct Artifact {
     url: String,
 }
 
+#[derive(Debug, Default, Serialize, Deserialize)]
+enum Os {
+    #[default]
+    Windows,
+    Linux,
+    MacOS,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct Rule {
+    os: Os
+}
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct LibData {
     artifact: Artifact,
+    rules: Option<Rule>
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]

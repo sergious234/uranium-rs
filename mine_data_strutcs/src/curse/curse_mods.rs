@@ -64,12 +64,15 @@ struct FingerPrintInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 /// This struct contains the data about the request of a fingerprint
-/// Fingerprint requets are like
-///:"data": {
-///:    exactMatches: \[
-///:        CurseFile
-///:    \]
-///:}
+/// Fingerprint requets are like 
+/// ```json
+/// "data": {
+///     exactMatches: [
+///         CurseFile
+///     ]
+/// }
+/// ```
+///
 pub struct CurseFingerPrint {
     exactMatches: Vec<FingerPrintInfo>,
 }

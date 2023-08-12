@@ -22,7 +22,7 @@ pub struct SearchProjects {
 }
 
 /// `RinthMod` pretends to be the structure for the response of
-/// https://api.modrinth.com/v2/project/{id | slug}
+/// `https://api.modrinth.com/v2/project/{id | slug}`
 /// This type is also usable when requesting searchs for rinth api
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RinthProject {
@@ -83,7 +83,7 @@ impl Dependency {
 }
 
 /// `RinthProject` pretends to be the response for:
-/// https://api.modrinth.com/v2/version/{version id}
+/// `https://api.modrinth.com/v2/version/{version id}`
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct RinthVersion {
     id: String,
@@ -155,7 +155,7 @@ impl RinthVersion {
 }
 
 /// Rinthversions pretends to parse the response of:
-/// https://api.modrinth.com/v2/project/{id | slug}/version
+/// `https://api.modrinth.com/v2/project/{id | slug}/version`
 /// This structure is commonly use
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct RinthVersions {

@@ -33,7 +33,7 @@ impl ModRinth {
         )
     }
 
-    /// https://api.modrinth.com/v2/project/AANobbMI/version
+    /// `https://api.modrinth.com/v2/project/AANobbMI/version`
     pub fn mod_versions_by_id(id: &str) -> String {
         format!("{}/project/{}/version", BASE_MRN_URL2, id)
     }
