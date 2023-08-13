@@ -17,6 +17,8 @@ pub enum ModpackError {
     DownloadError,
     #[error("Error making the requests")]
     RequestError,
+    #[error("File hash doesnt match")]
+    FileNotMatch,
 }
 
 impl std::convert::From<std::io::Error> for ModpackError {
