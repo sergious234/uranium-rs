@@ -116,8 +116,8 @@ struct Artifact {
     url: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
-enum Os {
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum Os {
     #[default]
     Windows,
     Linux,
@@ -126,19 +126,32 @@ enum Os {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Rule {
-    os: Os
+    os: Os,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct LibData {
     artifact: Artifact,
-    rules: Option<Rule>
+    rules: Option<Rule>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Library {
     downloads: LibData,
     name: String,
+}
+
+impl Library {
+    pub fn get_os(&self) -> Option<Os> {
+        if let Some(rule) = self.downloads.rules.as_ref() {
+            return Some(rule.os);
+        }
+        None
+    }
+
+    pub fn get_url(&self) -> &str {
+        self.downloads.artifact.url.as_str()
+    }
 }
 
 /*
@@ -167,12 +180,27 @@ pub struct MinecraftInstance {
     pub assest_index: AssestIndex,
     pub id: String,
     pub downloads: HashMap<String, DownloadData>,
-    pub libraries: Libraries,
+    libraries: Libraries,
+}
+
+impl MinecraftInstance {
+    pub fn get_libs(&self) -> &Libraries {
+        &self.libraries
+    }
+
+    pub fn get_assests_url(&self) -> &str {
+        &self.assest_index.url
+    }
+
+    pub fn get_index_name(&self) -> String {
+        let assests_url = self.assest_index.url.as_str();
+        assests_url[&assests_url.rfind('/').unwrap_or_default() + 1..].to_owned()
+    }
 }
 
 pub trait Lib {
     fn get_paths(&self) -> Vec<PathBuf>;
-    fn get_ulrs(&self) -> Vec<&str>;
+    fn get_urls(&self) -> Vec<&str>;
 }
 
 impl Lib for Libraries {
@@ -182,9 +210,9 @@ impl Lib for Libraries {
             .collect()
     }
 
-    fn get_ulrs(&self) -> Vec<&str> {
+    fn get_urls(&self) -> Vec<&str> {
         self.iter()
-            .map(|l| l.downloads.artifact.url.as_str())
+            .map(Library::get_url)
             .collect()
     }
 }
