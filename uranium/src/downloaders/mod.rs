@@ -15,3 +15,4 @@ mod rinth_downloader;
 pub use self::curse_downloader::curse_modpack_downloader;
 pub use self::rinth_downloader::RinthDownloader;
 pub use self::updater::update_modpack;
+pub use self::minecraft_downloader::*;
