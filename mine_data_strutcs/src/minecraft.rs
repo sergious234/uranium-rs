@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::{PathBuf, Path}};
 
 const BASE: &str = "https://resources.download.minecraft.net/";
 
@@ -211,8 +211,94 @@ impl Lib for Libraries {
     }
 
     fn get_urls(&self) -> Vec<&str> {
-        self.iter()
-            .map(Library::get_url)
-            .collect()
+        self.iter().map(Library::get_url).collect()
+    }
+}
+
+/*
+
+    Minecraft launcher_profiles.json
+
+
+*/
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ProfileData {
+    icon: String,
+    #[serde(rename = "lastVersionId")]
+    last_version_id: String,
+    name: String,
+
+    #[serde(rename = "gameDir")]
+    game_dir: Option<PathBuf>,
+
+    #[serde(rename = "type")]
+    profile_type: String,
+}
+
+impl ProfileData {
+    pub fn new(icon: &str, last_version_id: &str, name: &str, profile_type: &str, path: Option<&Path>) -> Self {
+        let path = match path {
+            Some(p) => Some(p.to_owned()),
+            None => None
+        };
+
+        ProfileData {
+            icon: icon.to_string(),
+            last_version_id: last_version_id.to_string(),
+            name: name.to_string(),
+            game_dir: path,
+            profile_type: profile_type.to_string(),
+        }
+    }
+}
+
+#[derive(Default, Debug, Deserialize, Serialize, Clone)]
+pub struct Profiles {
+    profiles: HashMap<String, ProfileData>,
+}
+
+impl Profiles {
+    /// This function returns a reference to a `HashMap<String, ProfileData>` where
+    /// the `String` is the identifier of the profile and `ProfileData` is obviously the
+    /// data.
+    pub fn get_profiles(&self) -> &HashMap<String, ProfileData> {
+        &self.profiles
+    }
+}
+
+#[derive(Default, Debug, Deserialize, Serialize, Clone)]
+pub struct ProfilesJson {
+    profiles: Profiles,
+}
+
+impl ProfilesJson {
+    /// Reads the content of `launcher_profiles.json` from `path`.
+    ///
+    /// In case there is an error parsing the json then a default `Ok(ProfilesJson)`
+    /// will be returned.
+    ///
+    /// # Errors
+    ///
+    /// In case there is no `launcher_profiles.json` in `path` then this function will
+    /// return an io::Error.
+    ///
+    /// # Panic
+    ///
+    /// This function wont panic.
+    pub fn read_json_from<I: AsRef<std::path::Path>>(
+        path: I,
+    ) -> Result<ProfilesJson, std::io::Error> {
+        let content = std::io::read_to_string(std::fs::File::open(path)?)?;
+        let parsed = serde_json::from_str::<ProfilesJson>(&content);
+
+        Ok(parsed.unwrap_or_default())
+    }
+
+    /// This function returns a reference to a `HashMap<String, ProfileData>` where
+    /// the `String` is the identifier of the profile and `ProfileData` is obviously the
+    /// data.
+    pub fn get_profiles(&self) -> &HashMap<String, ProfileData> {
+        self.profiles.get_profiles()
     }
 }
