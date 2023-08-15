@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 struct Logo {
     id: usize,
     modId: usize,
-    thumbnailUrl: String,
+    #[serde(rename="thumbnailUrl")]
+    thumbnail_url: String,
     url: String,
 }
 
@@ -17,13 +18,20 @@ struct Logo {
 /// This struct contains the data about the specific file of a mod
 pub struct CurseFile {
     id: usize,
-    gameId: Option<usize>,
-    modId: usize,
-    displayName: String,
-    fileName: PathBuf,
-    downloadUrl: Option<String>,
-    fileLength: usize,
-    gameVersions: Vec<String>,
+    #[serde(rename="gameId")]
+    game_id: Option<usize>,
+    #[serde(rename="modId")]
+    mod_id: usize,
+    #[serde(rename="displayName")]
+    display_name: String,
+    #[serde(rename="fileName")]
+    file_name: PathBuf,
+    #[serde(rename="downloadUrl")]
+    download_url: Option<String>,
+    #[serde(rename="fileLength")]
+    file_length: usize,
+    #[serde(rename="gameVersions")]
+    game_versions: Vec<String>,
 }
 
 impl CurseFile {
@@ -32,27 +40,27 @@ impl CurseFile {
     }
 
     pub fn get_game_id(&self) -> usize {
-        self.gameId.unwrap_or_default()
+        self.game_id.unwrap_or_default()
     }
 
     pub fn get_mod_id(&self) -> usize {
-        self.modId
+        self.mod_id
     }
 
-    pub fn get_game_versions(&self) -> &Vec<String> {
-        &self.gameVersions
+    pub fn get_game_versions(&self) -> &[String] {
+        &self.game_versions
     }
 
     pub fn get_display_name(&self) -> String {
-        self.displayName.clone()
+        self.display_name.clone()
     }
 
     pub fn get_file_name(&self) -> PathBuf {
-        self.fileName.clone()
+        self.file_name.clone()
     }
 
     pub fn get_download_url(&self) -> String {
-        self.downloadUrl.clone().unwrap_or_default()
+        self.download_url.clone().unwrap_or_default()
     }
 }
 
@@ -62,7 +70,6 @@ struct FingerPrintInfo {
     pub file: CurseFile,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
 /// This struct contains the data about the request of a fingerprint
 /// Fingerprint requets are like 
 /// ```json
@@ -73,6 +80,7 @@ struct FingerPrintInfo {
 /// }
 /// ```
 ///
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CurseFingerPrint {
     exactMatches: Vec<FingerPrintInfo>,
 }
@@ -83,8 +91,8 @@ impl CurseFingerPrint {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
 /// This struct contains the data about a single version of a mod
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CurseVersion {
     id: usize,
     gameId: usize,
@@ -94,18 +102,18 @@ pub struct CurseVersion {
     latestFiles: Vec<CurseFile>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
 /// This struct contains the data about the multiple versions of a mod
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CurseVersions {
     data: Vec<CurseVersion>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
 /// Because the standar response from Curse API is:
 /// "data": {
 ///     * fields of other struct *
 /// }
 /// We need this struct.
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CurseResponse<T: Serialize> {
     pub data: T,
 }
