@@ -1,14 +1,14 @@
-#![allow(non_snake_case)]
-
 use super::rinth_mods::{Hashes, RinthVersion};
 use serde::{Deserialize, Serialize};
 use std::{fs::read_to_string, path::PathBuf};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RinthModpack {
-    formatVersion: usize,
+    #[serde(rename="formatVersion")]
+    format_version: usize,
     game: String,
-    versionId: String,
+    #[serde(rename="versionId")]
+    version_id: String,
     name: PathBuf,
     files: Vec<RinthMdFiles>,
 }
@@ -16,9 +16,9 @@ pub struct RinthModpack {
 impl RinthModpack {
     pub fn new() -> RinthModpack {
         RinthModpack {
-            formatVersion: 1,
+            format_version: 1,
             game: "minecraft".to_owned(),
-            versionId: "0.0.0".to_owned(),
+            version_id: "0.0.0".to_owned(),
             name: "example".into(),
             files: Vec::new(),
         }
@@ -55,7 +55,8 @@ pub struct RinthMdFiles {
     path: PathBuf,
     hashes: Hashes,
     downloads: Vec<String>,
-    fileSize: usize,
+    #[serde(rename="fileSize")]
+    file_size: usize,
 }
 
 impl std::convert::From<RinthVersion> for RinthMdFiles {
@@ -64,7 +65,7 @@ impl std::convert::From<RinthVersion> for RinthMdFiles {
             path: ("mods/".to_owned() + &version.get_file_name()).into(),
             hashes: version.get_hashes().clone(),
             downloads: vec![version.get_file_url()],
-            fileSize: version.get_size(),
+            file_size: version.get_size(),
         }
     }
 }

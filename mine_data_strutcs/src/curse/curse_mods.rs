@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -8,7 +6,8 @@ use serde::{Deserialize, Serialize};
 /// This struct only contains data about the mod logo.
 struct Logo {
     id: usize,
-    modId: usize,
+    #[serde(rename="modId")]
+    mod_id: usize,
     #[serde(rename="thumbnailUrl")]
     thumbnail_url: String,
     url: String,
@@ -82,12 +81,13 @@ struct FingerPrintInfo {
 ///
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CurseFingerPrint {
-    exactMatches: Vec<FingerPrintInfo>,
+    #[serde(rename="exactMatches")]
+    exact_matches: Vec<FingerPrintInfo>,
 }
 
 impl CurseFingerPrint {
     pub fn get_file(&self) -> &CurseFile {
-        &self.exactMatches[0].file
+        &self.exact_matches[0].file
     }
 }
 
@@ -95,11 +95,14 @@ impl CurseFingerPrint {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CurseVersion {
     id: usize,
-    gameId: usize,
+    #[serde(rename="gameId")]
+    game_id: usize,
     name: String,
     slug: String,
-    downloadCount: usize,
-    latestFiles: Vec<CurseFile>,
+    #[serde(rename="downloadCount")]
+    download_counr: usize,
+    #[serde(rename="latestFiles")]
+    latest_files: Vec<CurseFile>,
 }
 
 /// This struct contains the data about the multiple versions of a mod

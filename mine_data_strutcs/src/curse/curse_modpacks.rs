@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 use std::fs::read_to_string;
 
 use serde::{Deserialize, Serialize};
@@ -7,17 +5,19 @@ use serde_json::Error;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CursePackFiles {
-    projectID: usize,
-    fileID: usize,
+    #[serde(rename="projectID")]
+    project_id: usize,
+    #[serde(rename="fileID")]
+    file_id: usize,
 }
 
 impl CursePackFiles {
     pub fn get_project_id(&self) -> usize {
-        self.projectID
+        self.project_id
     }
 
     pub fn get_file_id(&self) -> usize {
-        self.fileID
+        self.file_id
     }
 }
 
