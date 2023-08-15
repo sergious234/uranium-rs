@@ -10,7 +10,7 @@ use mine_data_strutcs::rinth::rinth_packs::{load_rinth_pack, RinthMdFiles, Rinth
 use requester::requester::request_maker::RinthRequester;
 use std::path::{Path, PathBuf};
 
-/// RinthDownloader struct is responsable for downloading
+/// `RinthDownloader` struct is responsable for downloading
 /// the fiven modpack.
 pub struct RinthDownloader {
     gen_downloader: Downloader<RinthRequester>,
@@ -95,9 +95,10 @@ impl RinthDownloader {
         Ok(rinth_pack)
     }
 
-    /// Starts the downloading.
-    pub async fn start(&mut self) {
-        //self.gen_downloader.start().await;
+    /// This method will start the download and make progress until
+    /// the download is completed.
+    pub async fn start(&mut self) -> Result<(), ModpackError> {
+        self.gen_downloader.start().await
     }
 
     /// Make progress.
@@ -106,7 +107,7 @@ impl RinthDownloader {
     /// the number of chunks remaining.
     ///
     /// Else return None.
-    pub async fn chunk(&mut self) -> Option<usize> {
+    pub async fn chunk(&mut self) -> Result<DownloadState, ModpackError> {
         self.gen_downloader.progress().await
     }
 
