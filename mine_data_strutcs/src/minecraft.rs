@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::{PathBuf, Path}};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 const BASE: &str = "https://resources.download.minecraft.net/";
 
@@ -21,7 +24,8 @@ impl ObjectData {
     }
 
     pub fn get_path(&self) -> PathBuf {
-        PathBuf::from(self.hash[..2].to_owned() + "/" + &self.hash)
+        PathBuf::from(&self.hash[..2]).join(&self.hash)
+        //PathBuf::from(self.hash[..2].to_owned() + "/" + &self.hash)
     }
 }
 
@@ -75,7 +79,7 @@ impl MinecraftVersion {
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct MinecraftInstances {
     //latest: (String, String),
-    pub versions: Vec<MinecraftVersion>,
+    versions: Vec<MinecraftVersion>,
 }
 
 impl MinecraftInstances {
@@ -237,11 +241,14 @@ pub struct ProfileData {
 }
 
 impl ProfileData {
-    pub fn new(icon: &str, last_version_id: &str, name: &str, profile_type: &str, path: Option<&Path>) -> Self {
-        let path = match path {
-            Some(p) => Some(p.to_owned()),
-            None => None
-        };
+    pub fn new(
+        icon: &str,
+        last_version_id: &str,
+        name: &str,
+        profile_type: &str,
+        path: Option<&Path>,
+    ) -> Self {
+        let path = path.map(std::borrow::ToOwned::to_owned);
 
         ProfileData {
             icon: icon.to_string(),
@@ -253,24 +260,64 @@ impl ProfileData {
     }
 }
 
-#[derive(Default, Debug, Deserialize, Serialize, Clone)]
-pub struct Profiles {
-    profiles: HashMap<String, ProfileData>,
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+#[allow(clippy::struct_excessive_bools)]
+pub struct Settings {
+    crash_assistance: bool,
+    enable_advanced: bool,
+    enable_analytics: bool,
+    enable_historical: bool,
+    enable_releases: bool,
+    enable_snapshots: bool,
+    keep_launcher_open: bool,
+    profile_sorting: String,
+    show_game_log: bool,
+    show_menu: bool,
+    sound_on: bool,
 }
 
-impl Profiles {
-    /// This function returns a reference to a `HashMap<String, ProfileData>` where
-    /// the `String` is the identifier of the profile and `ProfileData` is obviously the
-    /// data.
-    pub fn get_profiles(&self) -> &HashMap<String, ProfileData> {
-        &self.profiles
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            crash_assistance: false,
+            enable_advanced: false,
+            enable_analytics: false,
+            enable_historical: true,
+            enable_releases: true,
+            enable_snapshots: false,
+            keep_launcher_open: true,
+            profile_sorting: "ByLasPlayed".to_owned(),
+            show_game_log: true,
+            show_menu: true,
+            sound_on: true,
+        }
     }
 }
 
 #[derive(Default, Debug, Deserialize, Serialize, Clone)]
 pub struct ProfilesJson {
-    profiles: Profiles,
+    profiles: HashMap<String, ProfileData>,
+    settings: Settings,
+    version: usize,
 }
+
+/*
+ "settings" : {
+  59   │     "crashAssistance" : true,
+  60   │     "enableAdvanced" : false,
+  61   │     "enableAnalytics" : true,
+  62   │     "enableHistorical" : false,
+  63   │     "enableReleases" : true,
+  64   │     "enableSnapshots" : false,
+  65   │     "keepLauncherOpen" : false,
+  66   │     "profileSorting" : "ByLastPlayed",
+  67   │     "showGameLog" : false,
+  68   │     "showMenu" : false,
+  69   │     "soundOn" : false
+  70   │   },
+  71   │   "version" : 3
+*/
 
 impl ProfilesJson {
     /// Reads the content of `launcher_profiles.json` from `path`.
@@ -281,7 +328,7 @@ impl ProfilesJson {
     /// # Errors
     ///
     /// In case there is no `launcher_profiles.json` in `path` then this function will
-    /// return an io::Error.
+    /// return an `io::Error`.
     ///
     /// # Panic
     ///
@@ -295,10 +342,19 @@ impl ProfilesJson {
         Ok(parsed.unwrap_or_default())
     }
 
+    pub fn add_profile(&mut self, profile_name: &str, data: ProfileData) {
+        self.get_mut_profiles()
+            .insert(profile_name.to_owned(), data);
+    }
+
+    fn get_mut_profiles(&mut self) -> &mut HashMap<String, ProfileData> {
+        &mut self.profiles
+    }
+
     /// This function returns a reference to a `HashMap<String, ProfileData>` where
     /// the `String` is the identifier of the profile and `ProfileData` is obviously the
     /// data.
     pub fn get_profiles(&self) -> &HashMap<String, ProfileData> {
-        self.profiles.get_profiles()
+        &self.profiles
     }
 }
