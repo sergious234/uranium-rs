@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
-use downloaders::RinthDownloader;
-use error::{MakerError, ModpackError};
+use downloaders::{RinthDownloader, minecraft_downloader::MinecraftDownloader};
+use error::{MakerError, UraniumError};
 use log::info;
 use modpack_maker::maker::{ModpackMaker, State};
 use variables::constants::*;
@@ -50,9 +50,21 @@ pub async fn make_modpack<I: AsRef<Path>>(minecraft_path: I) -> Result<(), Maker
 pub async fn rinth_pack_download<I: AsRef<Path>>(
     file_path: I,
     destination_path: I,
-) -> Result<(), ModpackError> {
+) -> Result<(), UraniumError> {
     let mut rinth_downloader = RinthDownloader::new(&file_path, &destination_path)?;
     rinth_downloader.start().await?;
+    Ok(())
+}
+
+/// # Easy to go function
+///
+/// This function still work in progress
+pub async fn download_minecraft<I: AsRef<Path>>(
+    instance: &str,
+    destination_path: I,
+) -> Result<(), UraniumError> {
+    let mut minecraft_downloader = MinecraftDownloader::init(destination_path, instance).await;
+    let _ = minecraft_downloader.start().await?;
     Ok(())
 }
 
