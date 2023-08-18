@@ -3,19 +3,19 @@ use std::{
     path::Path,
 };
 
-use crate::{error::ModpackError, variables::constants::TEMP_DIR};
+use crate::{error::UraniumError, variables::constants::TEMP_DIR};
 use log::error;
 
-pub fn unzip_temp_pack<I: AsRef<Path>>(file_path: I) -> Result<(), ModpackError> {
+pub fn unzip_temp_pack<I: AsRef<Path>>(file_path: I) -> Result<(), UraniumError> {
     let zip_file = match File::open(file_path.as_ref()) {
         Ok(file) => file,
         Err(e) => {
             error!("Error trying to open the zip file!: {}", e);
-            return Err(ModpackError::FileNotFound);
+            return Err(UraniumError::FileNotFound);
         }
     };
 
-    let mut zip = zip::ZipArchive::new(zip_file).map_err(|_| ModpackError::WrongFileFormat)?;
+    let mut zip = zip::ZipArchive::new(zip_file).map_err(|_| UraniumError::WrongFileFormat)?;
 
     if create_dir(TEMP_DIR).is_err() {
         error!("Could not create temporal dir");
