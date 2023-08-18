@@ -2,7 +2,7 @@ use thiserror::Error;
 
 
 #[derive(Debug, Error)]
-pub enum ModpackError {
+pub enum UraniumError {
     #[error("Wrong file format")]
     WrongFileFormat,
     #[error("Wrong modpack format")]
@@ -21,9 +21,9 @@ pub enum ModpackError {
     FileNotMatch,
 }
 
-impl std::convert::From<std::io::Error> for ModpackError {
+impl std::convert::From<std::io::Error> for UraniumError {
     fn from(value: std::io::Error) -> Self {
-        ModpackError::WriteError(value)
+        UraniumError::WriteError(value)
     }
 }
 
