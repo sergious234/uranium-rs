@@ -1,7 +1,7 @@
 use super::gen_downloader::*;
 use crate::{
     code_functions::N_THREADS,
-    error::ModpackError,
+    error::UraniumError,
     variables::constants::{RINTH_JSON, TEMP_DIR},
     zipper::pack_unzipper::unzip_temp_pack,
 };
@@ -17,8 +17,11 @@ pub struct RinthDownloader {
     modpack: RinthModpack,
 }
 
+type Links = Vec<String>;
+type Names = Vec<PathBuf>;
+
 impl RinthDownloader {
-    pub fn new<I: AsRef<Path>>(modpack_path: I, destination: I) -> Result<Self, ModpackError> {
+    pub fn new<I: AsRef<Path>>(modpack_path: I, destination: I) -> Result<Self, UraniumError> {
         let modpack = RinthDownloader::load_pack(modpack_path)?;
         let (links, names) = RinthDownloader::get_data(&modpack);
 
@@ -40,12 +43,12 @@ impl RinthDownloader {
 
     /// Returns the number of mods to download.
     pub fn len(&self) -> usize {
-        self.gen_downloader.urls.len()
+        self.gen_downloader.urls().len()
     }
 
     /// Returns `true` if there are no mods to download.
     pub fn is_empty(&self) -> bool {
-        self.gen_downloader.urls.is_empty()
+        self.gen_downloader.urls().is_empty()
     }
 
     /// Returns the number of **CHUNKS** to download.
@@ -53,9 +56,21 @@ impl RinthDownloader {
     /// So, if `N_THREADS` is set to 2 and there are 32 mods it
     /// will return 16;
     ///
+    ///
     /// 32/2 = 16
     pub fn chunks(&self) -> usize {
-        self.gen_downloader.urls.len() / N_THREADS()
+        self.gen_downloader.urls().len() / N_THREADS()
+    }
+
+    /// Returns how many requests chunks are left.
+    pub fn requests_left(&self) -> usize {
+        let left = &self.gen_downloader.requests_left();
+
+        if left % N_THREADS() == 0 {
+            left / N_THREADS()
+        } else {
+            left / N_THREADS() + 1
+        }
     }
 
     /// Simply returns the modpack name.
@@ -63,7 +78,7 @@ impl RinthDownloader {
         self.modpack.get_name()
     }
 
-    fn get_data(rinth_pack: &RinthModpack) -> (Vec<String>, Vec<PathBuf>) {
+    fn get_data(rinth_pack: &RinthModpack) -> (Links, Names) {
         let file_links: Vec<String> = rinth_pack
             .get_files()
             .iter()
@@ -85,10 +100,10 @@ impl RinthDownloader {
         (file_links, file_names)
     }
 
-    fn load_pack<I: AsRef<Path>>(path: I) -> Result<RinthModpack, ModpackError> {
+    fn load_pack<I: AsRef<Path>>(path: I) -> Result<RinthModpack, UraniumError> {
         unzip_temp_pack(path)?;
         let Some(rinth_pack) = load_rinth_pack(&(TEMP_DIR.to_owned() + RINTH_JSON)) else {
-            return Err(ModpackError::WrongFileFormat)};
+            return Err(UraniumError::WrongFileFormat)};
 
         info!("Pack loaded {}", rinth_pack.get_name());
 
@@ -97,7 +112,7 @@ impl RinthDownloader {
 
     /// This method will start the download and make progress until
     /// the download is completed.
-    pub async fn start(&mut self) -> Result<(), ModpackError> {
+    pub async fn start(&mut self) -> Result<(), UraniumError> {
         self.gen_downloader.start().await
     }
 
@@ -107,22 +122,22 @@ impl RinthDownloader {
     /// the number of chunks remaining.
     ///
     /// Else return None.
-    pub async fn chunk(&mut self) -> Result<DownloadState, ModpackError> {
+    pub async fn chunk(&mut self) -> Result<DownloadState, UraniumError> {
         self.gen_downloader.progress().await
     }
 
-    fn check_mods_dir(destination: &Path) -> Result<(), ModpackError> {
+    fn check_mods_dir(destination: &Path) -> Result<(), UraniumError> {
         if !destination.join("mods").exists() {
             std::fs::create_dir(destination.join("mods"))
-                .map_err(|_| ModpackError::CantCreateDir)?;
+                .map_err(|_| UraniumError::CantCreateDir)?;
         }
         Ok(())
     }
 
-    fn check_config_dir(destination: &Path) -> Result<(), ModpackError> {
+    fn check_config_dir(destination: &Path) -> Result<(), UraniumError> {
         if !destination.join("config").exists() {
             std::fs::create_dir(destination.join("config"))
-                .map_err(|_| ModpackError::CantCreateDir)?;
+                .map_err(|_| UraniumError::CantCreateDir)?;
         }
         Ok(())
     }
