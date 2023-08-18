@@ -1,6 +1,6 @@
 use crate::{
     code_functions::N_THREADS,
-    error::ModpackError,
+    error::UraniumError,
     variables::constants::{CURSE_JSON, TEMP_DIR},
     zipper::pack_unzipper::unzip_temp_pack,
 };
@@ -24,7 +24,7 @@ use super::{functions::overrides, gen_downloader::Downloader};
 pub async fn curse_modpack_downloader<I: AsRef<Path>>(
     path: I,
     destination_path: I,
-) -> Result<(), ModpackError> {
+) -> Result<(), UraniumError> {
     unzip_temp_pack(path)?;
 
     let curse_pack = load_curse_pack((TEMP_DIR.to_owned() + CURSE_JSON).as_ref())
