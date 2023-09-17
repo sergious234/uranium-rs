@@ -13,6 +13,7 @@ async fn download_and_write(
 ) -> Result<(), UraniumError> {
     assert_eq!(responses.len(), names.len());
 
+    info!("Downloading data");
     let mut bytes_from_res = Vec::with_capacity(responses.len());
 
     for response in responses {
@@ -26,6 +27,7 @@ async fn download_and_write(
         .flatten()
         .collect();
 
+    info!("Writting data");
     for (i, bytes) in bytes_from_res.into_iter().enumerate() {
         let file_path = path.join(&names[i]);
         if let Err(e) = std::fs::write(&file_path, &bytes) {
@@ -159,6 +161,8 @@ impl<T: Req + Clone + Send + Sync> Downloader<T> {
             requests_vec.push(async move { rq.get(url, Method::GET, "").await });
         }
 
+        
+        info!("Getting requests {}", self.names.len());
         let responses: Vec<Result<Response, reqwest::Error>> =
             join_all(requests_vec).await.into_iter().flatten().collect();
 
@@ -172,6 +176,7 @@ impl<T: Req + Clone + Send + Sync> Downloader<T> {
         let names = self.names.drain(0..chunk_size).collect();
         let task = tokio::spawn(async { download_and_write(path, responses, names).await });
 
+        info!("Pushing new task {}", self.names.len());
         self.tasks.push_back(task);
         Ok(DownloadState::MakingRequests)
     }
