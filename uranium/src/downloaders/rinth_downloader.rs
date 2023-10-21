@@ -1,4 +1,4 @@
-use super::gen_downloader::*;
+use super::gen_downloader::{DownloadState, Downloader};
 use crate::{
     code_functions::N_THREADS,
     error::UraniumError,
@@ -21,14 +21,20 @@ type Links = Vec<String>;
 type Names = Vec<PathBuf>;
 
 impl RinthDownloader {
+    /// Create a new `RinthDownloader` with the given `modpack_path` and `destination`
+    ///
+    /// # Errors
+    ///
+    /// This function can returns `Err(UraniumError::WrongFileFormat)` if the given
+    /// `modpack_path`is not a valid modpack file.
     pub fn new<I: AsRef<Path>>(modpack_path: I, destination: I) -> Result<Self, UraniumError> {
-        let modpack = RinthDownloader::load_pack(modpack_path)?;
-        let (links, names) = RinthDownloader::get_data(&modpack);
+        let modpack = Self::load_pack(modpack_path)?;
+        let (links, names) = Self::get_data(&modpack);
 
         let destination = destination.as_ref().to_owned();
 
-        RinthDownloader::check_mods_dir(&destination)?;
-        RinthDownloader::check_config_dir(&destination)?;
+        Self::check_mods_dir(&destination)?;
+        Self::check_config_dir(&destination)?;
 
         Ok(RinthDownloader {
             gen_downloader: Downloader::new(
@@ -42,11 +48,13 @@ impl RinthDownloader {
     }
 
     /// Returns the number of mods to download.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.gen_downloader.urls().len()
     }
 
     /// Returns `true` if there are no mods to download.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.gen_downloader.urls().is_empty()
     }
@@ -58,11 +66,13 @@ impl RinthDownloader {
     ///
     ///
     /// 32/2 = 16
+    #[must_use]
     pub fn chunks(&self) -> usize {
         self.gen_downloader.urls().len() / N_THREADS()
     }
 
     /// Returns how many requests chunks are left.
+    #[must_use]
     pub fn requests_left(&self) -> usize {
         let left = &self.gen_downloader.requests_left();
 
@@ -74,6 +84,7 @@ impl RinthDownloader {
     }
 
     /// Simply returns the modpack name.
+    #[must_use]
     pub fn get_modpack_name(&self) -> String {
         self.modpack.get_name()
     }
@@ -103,7 +114,8 @@ impl RinthDownloader {
     fn load_pack<I: AsRef<Path>>(path: I) -> Result<RinthModpack, UraniumError> {
         unzip_temp_pack(path)?;
         let Some(rinth_pack) = load_rinth_pack(&(TEMP_DIR.to_owned() + RINTH_JSON)) else {
-            return Err(UraniumError::WrongFileFormat)};
+            return Err(UraniumError::WrongFileFormat);
+        };
 
         info!("Pack loaded {}", rinth_pack.get_name());
 
@@ -112,6 +124,9 @@ impl RinthDownloader {
 
     /// This method will start the download and make progress until
     /// the download is completed.
+    ///
+    /// # Errors
+    /// This function can return an `Err(UraniumError)` like `progress` can.
     pub async fn start(&mut self) -> Result<(), UraniumError> {
         self.gen_downloader.start().await
     }
@@ -122,6 +137,10 @@ impl RinthDownloader {
     /// the number of chunks remaining.
     ///
     /// Else return None.
+    ///
+    /// # Errors
+    /// In case the downloader fails to download or write the chunk this method will return an
+    /// error with the corresponding variant.
     pub async fn chunk(&mut self) -> Result<DownloadState, UraniumError> {
         self.gen_downloader.progress().await
     }
