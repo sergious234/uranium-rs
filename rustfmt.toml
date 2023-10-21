@@ -10,3 +10,4 @@ error_on_line_overflow = true
 tab_spaces = 4
 newline_style = "Unix"
 reorder_imports = true
+wrap_comments = true
