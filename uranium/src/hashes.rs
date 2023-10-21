@@ -10,7 +10,7 @@ fn get_sha1_from_file(file_path: &str) -> String {
 
     let metadata = fs::metadata(file_path).unwrap();
 
-    let mut buffer = Vec::with_capacity(metadata.len() as usize); //vec![0; metadata.len() as usize];
+    let mut buffer = Vec::with_capacity(metadata.len().try_into().unwrap_or_default()); //vec![0; metadata.len() as usize];
     let _ = file.read_to_end(&mut buffer);
 
     hasher.update(buffer);
