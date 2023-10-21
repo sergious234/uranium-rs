@@ -15,24 +15,36 @@ use super::uranium_structs::UraniumFile;
 use crate::zipper::uranium_structs::FileType;
 use log::{error, info, warn};
 
-/// This function will make a modpack from `path`.
+/// Compresses a Minecraft modpack into a ZIP archive.
 ///
-/// The modpack will have mrpack struct:
+/// This function takes the name of the output ZIP archive, the path to the 
+/// modpack files, and a list of raw mods as input.
 ///
-///    modpack.mrpack
-///    |  modrinth.index.json
-///    |
-///    |  overrides
-///    |   |  mods
-///    |   |  resourcepacks
-///    |   |  config
-///    |   |  ...
+/// It creates a ZIP archive with the specified name and adds the modpack's 
+/// files and configurations to it. Additionally, it can include raw mods in the archive.
 ///
-/// =========================================
+/// # Arguments
 ///
-pub fn compress_pack(name: &str, path: &Path, raw_mods: &[String]) -> Result<(), ZipError> {
-    //let path = &fix_path(path);
-
+/// * `name` - A string representing the name of the output ZIP archive.
+/// It should include the file extension.
+///
+/// * `path` - A [`Path`](std::path::Path) representing the path to the modpack 
+/// files to be compressed.
+///
+/// * `raw_mods` - A slice of types that implement [`AsRef<Path>`](std::path::AsRef) 
+/// representing the filenames of raw mods to include in the archive.
+///
+/// # Errors
+///
+/// This function can return an error of type `ZipError` in the following cases:
+///
+/// - If there is an error while creating or writing to the ZIP archive.
+///
+pub fn compress_pack<P: AsRef<Path>>(
+    name: &str,
+    path: &Path,
+    raw_mods: &[P],
+) -> Result<(), ZipError> {
     let zip_file = File::create(name.to_owned() + constants::EXTENSION)?;
     let mut zip = zip::ZipWriter::new(zip_file);
     let options = FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
@@ -127,7 +139,7 @@ fn add_files_to_zip(
     config_files: &mut Vec<UraniumFile>,
     zip: &mut ZipWriter<File>,
     options: FileOptions,
-) -> Result<(), ZipError>{
+) -> Result<(), ZipError> {
     for file in config_files {
         match_file(minecraft_path, zip, options, file)?;
     }
@@ -192,7 +204,12 @@ fn append_config_file(
     Ok(())
 }
 
-fn add_raw_mods(path: &Path, zip: &mut ZipWriter<File>, raw_mods: &[String], options: FileOptions) -> Result<(), ZipError> {
+fn add_raw_mods<P: AsRef<Path>>(
+    path: &Path,
+    zip: &mut ZipWriter<File>,
+    raw_mods: &[P],
+    options: FileOptions,
+) -> Result<(), ZipError> {
     zip.add_directory("overrides/mods", options)?;
 
     for jar_file in raw_mods {
