@@ -181,6 +181,10 @@ impl RinthVersions {
         self.versions.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn push(&mut self, version: RinthVersion) {
         self.versions.push(version);
     }
@@ -301,6 +305,10 @@ impl RinthResponse {
 
     pub fn len(&self) -> usize {
         self.hits.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
