@@ -157,11 +157,9 @@ impl<T: Req + Clone + Send + Sync> Downloader<T> {
         let mut requests_vec = Vec::new();
         for url in urls {
             let rq = self.requester.clone();
-            //let u = url.clone();
             requests_vec.push(async move { rq.get(url, Method::GET, "").await });
         }
 
-        
         info!("Getting requests {}", self.names.len());
         let responses: Vec<Result<Response, reqwest::Error>> =
             join_all(requests_vec).await.into_iter().flatten().collect();
@@ -181,15 +179,29 @@ impl<T: Req + Clone + Send + Sync> Downloader<T> {
         Ok(DownloadState::MakingRequests)
     }
 
-    /// Calling this function will make **progress** in the download.
+    /// This method is responsible for managing the progress of downloads and
+    /// tasks in the Uranium library.
     ///
-    /// When `DownloadState::Completed` is returned then the download is finish.
+    /// It returns the current `DownloadState`, which represents the state of
+    /// the download process.
     ///
-    /// If there are requests to do and free threads it will make them and return
-    /// `DownloadState::MakingRequests` if success or `UraniumError` if failed.
+    /// If there are pending names and the number of active tasks is less than
+    /// the maximum allowed threads, this method will make additional requests to fetch data.
     ///
-    /// This function will only wait for the first completed task and then it will
-    /// return `DownloadState::Downloading` in success or `UraniumError` if failed.
+    /// If there are active tasks, it will check their status and handle
+    /// completed tasks accordingly.
+    ///
+    /// # Errors
+    ///
+    /// This method can return an error of type `UraniumError` in the following cases:
+    ///
+    /// - If there is an error while making requests or processing tasks.
+    ///
+    /// # Returns
+    ///
+    /// This method returns a `Result<DownloadState, UraniumError>`, where
+    /// `DownloadState` represents the current state of the download process, and `UraniumError`
+    /// is the error type that occurs in case of failure.
     pub async fn progress(&mut self) -> Result<DownloadState, UraniumError> {
         if !self.names.is_empty() && self.tasks.len() < self.max_threads {
             return self.make_requests().await;
