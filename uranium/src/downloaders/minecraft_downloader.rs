@@ -1,17 +1,11 @@
-use super::gen_downloader::{DownloadState, Downloader};
-use crate::{
-    code_functions::N_THREADS,
-    error::UraniumError,
-    variables::constants::{CANT_CREATE_DIR, PROFILES_FILE},
-};
-use log::{error, info, warn};
+use super::gen_downloader::{DownloadState, DownlodableObject, FileDownloader, HashType};
+use crate::{code_functions::N_THREADS, error::UraniumError, variables::constants::PROFILES_FILE};
+use log::{debug, error, info, warn};
 use mine_data_strutcs::minecraft::{
     Lib, Libraries, MinecraftInstance, MinecraftInstances, ObjectData, ProfileData, ProfilesJson,
     Resources,
 };
-use rayon::prelude::*;
 use reqwest;
-use sha1::digest::Digest;
 use std::{
     fs::File,
     path::{Path, PathBuf},
@@ -23,37 +17,14 @@ const ASSESTS_PATH: &str = "assets/";
 const OBJECTS_PATH: &str = "objects";
 const INSTANCES_LIST: &str = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
 
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-enum HashCheckError {
-    #[error("Invalid hash")]
-    BadHash,
-    #[error("Hash doesnt match")]
-    HashDoesntMatch,
-}
-
-///
-/// Returns `Ok(())` when the hash matches.
-/// Otherwise `Err`
-///
-fn check_file<T: AsRef<[u8]>>(bytes: T, hash: &str) -> Result<(), HashCheckError> {
-    //hasher.update(bytes.as_ref());
-    //let file_hash = hasher.finalize().to_vec();
-    let file_hash = sha1::Sha1::digest(bytes).to_vec();
-    if file_hash != hex::decode(hash).map_err(|_| HashCheckError::BadHash)? {
-        warn!("Error while checking {:?}, wrong hash", hash);
-        return Err(HashCheckError::HashDoesntMatch);
-    }
-    Ok(())
-}
-
 /*
 
    MINECRAFT INSTANCES VERSIONS/LIST ?
 
 */
 
+/// Function that returns a list `Result<MinecraftInstances, UraniumError>`
+///
 /// Returns a `Result<_, _>` where the `Ok()` value is a `MinecraftInstances` struct
 /// and the `Err()` value a `UraniumError`.
 ///
@@ -63,31 +34,6 @@ fn check_file<T: AsRef<[u8]>>(bytes: T, hash: &str) -> Result<(), HashCheckError
 pub async fn list_instances() -> Result<MinecraftInstances, UraniumError> {
     let requester = reqwest::Client::new();
 
-    let instances = requester
-        .get(INSTANCES_LIST)
-        .send()
-        .await
-        .map_err(|_| UraniumError::RequestError)?
-        .json::<MinecraftInstances>()
-        .await
-        .map_err(|_| UraniumError::RequestError)?;
-
-    Ok(instances)
-}
-
-/// Returns a `Result<_, _>` where the `Ok()` value is a `MinecraftInstances` struct
-/// and the `Err()` value a `UraniumError`.
-///
-/// This funcion recive a requester so you can re-use it in case you already
-/// have one.
-///
-/// # Errors
-/// This function can fail when fetching the minecraft versions from Microsoft page. In that case
-/// this function will return an `Err(UraniumError::RequestError)`
-
-pub async fn list_instances_with_requester(
-    requester: &reqwest::Client,
-) -> Result<MinecraftInstances, UraniumError> {
     let instances = requester
         .get(INSTANCES_LIST)
         .send()
@@ -116,22 +62,20 @@ pub enum MinecraftDownloadState {
     Completed,
 }
 
-/// # `MinecraftDownloader`
-///
 /// This struct is responsable of downloading Minecraft and it's libraries.
 ///
 ///
 /// # Example:
 ///
 /// ```no_run
-/// use uranium::downloaders::minecraft_downloader::{MinecraftDownloader, MinecraftDownloadState};
+/// use uranium::{FileDownloader, MinecraftDownloader, MinecraftDownloadState};
 ///
-///
+/// # fn foo<T: FileDownloader + Send + Sync>() {
 /// async {
-///     let mut minecraft_down = MinecraftDownloader::init("my/path", "1.20.1").await;
+///     // T: FileDownloader + Send + Sync
+///     let mut minecraft_down = MinecraftDownloader::<T>::init("my/path", "1.20.1").await;
 ///
 ///     loop {
-///         let chunks = minecraft_down.force_chunks().await.unwrap() * 2;
 ///         let state = minecraft_down.progress().await;
 ///
 ///         match state {
@@ -153,35 +97,45 @@ pub enum MinecraftDownloadState {
 ///         }
 ///     }
 /// };
+/// # }
 /// ```
-pub struct MinecraftDownloader {
+pub struct MinecraftDownloader<T: FileDownloader> {
     requester: reqwest::Client,
     destination_path: PathBuf,
-    resources: Option<Resources>,
+    resources: Vec<DownlodableObject>,
     minecraft_instance: MinecraftInstance,
     download_state: MinecraftDownloadState,
-    downloader: Option<Downloader<reqwest::Client>>,
+    downloader: Option<T>,
+
+    #[allow(unused)]
     bad_files: RwLock<Vec<ObjectData>>,
 }
 
-impl MinecraftDownloader {
+impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     /// Makes a new `MinecraftDownloader` struct.
     ///
-    /// `destination_path`: Where minecraft will be downloaded.
-    /// `minecraft_version`: Which versions is going to be downloaded.
+    /// - `destination_path`: Where minecraft will be downloaded.
+    /// - `minecraft_version`: Which versions is going to be downloaded.
     ///
     /// # Panics
     ///
     /// This function will panic if the `minecraft_version` does not exists
     ///
+    /// # Examples
+    ///
     /// This will panic:
-    /// ```no_run
-    /// use uranium::downloaders::minecraft_downloader::MinecraftDownloader;
-    /// MinecraftDownloader::init("my/mine/path", "league of legends");
+    /// ```
+    /// use uranium::MinecraftDownloader;
+    /// use uranium::FileDownloader;
+    ///
+    /// # fn foo<T: FileDownloader + Send + Sync>() {
+    /// // Where T: FileDownloader + Send + Sync
+    /// MinecraftDownloader::<T>::init("my/mine/path", "league of legends");
+    /// # }
     /// ```
     pub async fn init<I: AsRef<Path>>(destination_path: I, minecraft_version: &str) -> Self {
         let requester = reqwest::Client::new();
-        let intances = list_instances_with_requester(&requester)
+        let intances = list_instances()
             .await
             .expect("Couldnt get minecraft versions");
 
@@ -206,7 +160,7 @@ impl MinecraftDownloader {
         MinecraftDownloader {
             requester: reqwest::Client::new(),
             destination_path,
-            resources: None,
+            resources: vec![],
             minecraft_instance,
             download_state: MinecraftDownloadState::GettingSources,
             downloader: None,
@@ -256,43 +210,44 @@ impl MinecraftDownloader {
                 self.get_sources().await?;
                 self.download_state = MinecraftDownloadState::DownloadingIndexes;
             }
+
             MinecraftDownloadState::DownloadingIndexes => {
-                self.create_indexes().await?;
+                // let resources = self.resources.as_ref().unwrap();
 
-                let resources = self.resources.as_ref().unwrap();
+                // let mut objects: Vec<&ObjectData> = resources.objects.values().collect();
+                // objects.sort_by(|a, b| b.size.cmp(&a.size));
 
-                let mut objects: Vec<&ObjectData> = resources.objects.values().collect();
-                objects.sort_by(|a, b| b.size.cmp(&a.size));
+                /*
+                let mut files = Vec::with_capacity(objects.len());
+                let base = PathBuf::from(ASSESTS_PATH).join(OBJECTS_PATH);
 
-                let names: Vec<PathBuf> = objects
-                    .iter()
-                    .map(|obj| {
-                        PathBuf::from(ASSESTS_PATH)
-                            .join(OBJECTS_PATH)
-                            .join(&obj.hash[..2])
-                            .join(&obj.hash)
-                    })
-                    .collect();
+                for obj in objects {
+                    let url = obj.get_link();
+                    let path = base.join(&obj.hash[..2]).join(&obj.hash);
+                    files.push(DownlodableObject::new(
+                        &url,
+                        path.to_str().unwrap_or_default(),
+                        &self.destination_path,
+                        Some(HashType::Sha1(obj.hash.to_owned())),
+                    ));
+                }
+                */
 
-                let urls: Vec<String> = objects.iter().map(|obj| obj.get_link()).collect();
-
-                if self.creater_assest_folders(&names).is_err() {
+                if self.creater_assest_folders(&self.resources).is_err() {
                     error!("Error creating assests folders");
                     return Err(UraniumError::CantCreateDir);
                 };
 
-                self.downloader = Some(Downloader::new(
-                    urls.into(),
-                    names,
-                    self.destination_path.clone().into(),
-                    self.requester.clone(),
-                ));
+                let mut files = vec![];
+                std::mem::swap(&mut files, self.resources.as_mut());
+                self.downloader = Some(T::new(files));
 
                 self.download_state = MinecraftDownloadState::DownloadingAssests;
             }
+
             MinecraftDownloadState::DownloadingAssests => {
                 // SAFETY: The previous step will ALWAYS init the downloader into Some(Downloader).
-                let download_state = self.downloader.as_mut().unwrap().advance().await;
+                let download_state = self.downloader.as_mut().unwrap().progress().await;
 
                 match download_state {
                     // Here we prepare to download minecraft libs.
@@ -310,6 +265,7 @@ impl MinecraftDownloader {
                     _ => {}
                 }
             }
+
             MinecraftDownloadState::DownloadingLibraries => {
                 // Again the same process of:
                 // While not completed or no error keep doing progress
@@ -328,16 +284,17 @@ impl MinecraftDownloader {
                     }
                     _ => {}
                 }
-                //self.download_state = MinecraftDownloadState::CheckingFiles;
+                self.download_state = MinecraftDownloadState::CheckingFiles;
             }
 
             MinecraftDownloadState::CheckingFiles => {
-                self.check_files()?;
                 self.download_state = MinecraftDownloadState::Completed;
-                self.fix_wrong_file().await?;
+                // self.fix_wrong_file().await?;
             }
 
-            MinecraftDownloadState::Completed => {}
+            MinecraftDownloadState::Completed => {
+                info!("Minecraft download complete!");
+            }
         };
 
         Ok(self.download_state.clone())
@@ -354,28 +311,16 @@ impl MinecraftDownloader {
     /// The adjusted number of requests left to be processed by the downloader. If there is no
     /// downloader associated with the current instance, it returns 0.
     pub fn requests_left(&self) -> usize {
-        if let Some(d) = &self.downloader {
-            let left = d.requests_left();
-
-            if left % N_THREADS() == 0 {
-                left / N_THREADS()
-            } else {
-                left / N_THREADS() + 1
-            }
-        } else {
-            0
-        }
+        self.downloader
+            .as_ref()
+            .map(|d| (d.requests_left() as f64 / N_THREADS() as f64).ceil() as usize)
+            .unwrap_or_default()
     }
 
     /// Returns the number of chunks of libs to download: `libs.len() / N_THREADS()`
     pub fn lib_chunks(&self) -> usize {
-        let n_libs = self.minecraft_instance.get_libs().len();
-
-        if n_libs % N_THREADS() == 0 {
-            n_libs / N_THREADS()
-        } else {
-            n_libs / N_THREADS() + 1
-        }
+        let n = self.minecraft_instance.get_libs().len() as f64;
+        (n / N_THREADS() as f64).ceil() as usize
     }
 
     /// This function will return `Some(x)` if sources is set.
@@ -383,78 +328,9 @@ impl MinecraftDownloader {
     /// Where `x` is the number of objects (assets) to download / `N_THREADS()`
     ///
     /// If sources is not set then it will return None.
-    pub fn chunks(&self) -> Option<usize> {
-        if let Some(sources) = self.resources.as_ref() {
-            if sources.objects.len() % N_THREADS() == 0 {
-                Some(sources.objects.len() / N_THREADS())
-            } else {
-                Some(sources.objects.len() / N_THREADS() + 1)
-            }
-        } else {
-            None
-        }
-    }
-
-    /// This method forces the division of resources into chunks and returns
-    /// the number of resulting chunks.
-    ///
-    /// If resources have not been loaded previously, this method will fetch
-    /// them and update the download state to `DownloadingIndexes`
-    ///
-    /// # Errors
-    ///
-    /// This method can return an error of type `UraniumError` in the following cases:
-    ///
-    /// - If an error occurs while fetching or loading resources.
-    ///
-    /// # Panics
-    ///
-    /// This method should not panic under normal circumstances.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use uranium::error::UraniumError;
-    /// use uranium::downloaders::minecraft_downloader::MinecraftDownloader;
-    ///
-    ///
-    /// async {
-    ///     let mut uranium = MinecraftDownloader::init("my/path", "1.20.1").await;
-    ///     let result = uranium.force_chunks().await;
-    ///
-    ///     match result {
-    ///         Ok(chunks) => println!("Resources divided into {} chunks.", chunks),
-    ///         Err(err) => eprintln!("Error dividing resources: {:?}", err),
-    ///     }
-    /// };
-    /// ```
-    ///
-    /// # Returns
-    ///
-    /// This method returns a `Result<usize, UraniumError>`, where `usize` represents
-    /// the number of chunks the resources have been divided into, and `UraniumError`
-    /// is the error type that occurs in case of failure.
-    ///
-    /// If the length of the resource objects is divisible by the number of threads
-    /// (`N_THREADS()`), the result is the exact number of chunks. Otherwise, an
-    /// additional chunk is added to contain the remaining elements.
-    ///
-    /// # Notes
-    ///
-    /// Make sure to properly initialize your `MinecraftDownloader` object and
-    /// configure the resources before calling this method.
-    pub async fn force_chunks(&mut self) -> Result<usize, UraniumError> {
-        if self.resources.is_none() {
-            self.get_sources().await?;
-            self.download_state = MinecraftDownloadState::DownloadingIndexes;
-        }
-        let sources = self.resources.as_ref().unwrap();
-
-        if sources.objects.len() % N_THREADS() == 0 {
-            Ok(sources.objects.len() / N_THREADS())
-        } else {
-            Ok(sources.objects.len() / N_THREADS() + 1)
-        }
+    pub fn chunks(&self) -> usize {
+        let n = self.resources.len() as f64;
+        (n / N_THREADS() as f64).ceil() as usize
     }
 
     /// If a call to this function success it will set
@@ -462,6 +338,7 @@ impl MinecraftDownloader {
     ///
     /// If fails it will return the error in `Err()`.
     async fn get_sources(&mut self) -> Result<(), UraniumError> {
+        /*
         self.resources = Some(
             self.requester
                 .get(self.minecraft_instance.get_assests_url())
@@ -472,12 +349,24 @@ impl MinecraftDownloader {
                 .await
                 .map_err(|_| UraniumError::RequestError)?,
         );
+        */
+
+        //let mut objects: Vec<&ObjectData> = resources.objects.values().collect();
+        let resources: Resources = self
+            .requester
+            .get(self.minecraft_instance.get_assests_url())
+            .send()
+            .await
+            .map_err(|_| UraniumError::RequestError)?
+            .json::<Resources>()
+            .await
+            .map_err(|_| UraniumError::RequestError)?;
 
         if tokio::fs::create_dir_all(self.destination_path.join("assets/indexes"))
             .await
             .is_err()
         {
-            error!("{CANT_CREATE_DIR}");
+            error!("Cant create assets/indexes");
             return Err(UraniumError::CantCreateDir);
         }
 
@@ -485,25 +374,41 @@ impl MinecraftDownloader {
             .await
             .is_err()
         {
-            error!("{CANT_CREATE_DIR}");
+            error!("Cant create assets/objects");
             return Err(UraniumError::CantCreateDir);
         }
+
+        self.create_indexes(&resources).await?;
+
+        let base = PathBuf::from(ASSESTS_PATH).join(OBJECTS_PATH);
+
+        for obj in resources.objects.values() {
+            let url = obj.get_link();
+            let path = base.join(&obj.hash[..2]).join(&obj.hash);
+            self.resources.push(DownlodableObject::new(
+                &url,
+                path.to_str().unwrap_or_default(),
+                &self.destination_path,
+                Some(HashType::Sha1(obj.hash.to_owned())),
+            ));
+        } 
 
         Ok(())
     }
 
     /// Makes the minecraft index.json file
-    async fn create_indexes(&self) -> Result<(), UraniumError> {
+    async fn create_indexes(&self, resources: &Resources) -> Result<(), UraniumError> {
         let indexes_path = self
             .destination_path
             .join(ASSESTS_PATH)
             .join("indexes")
             .join(self.minecraft_instance.get_index_name());
+
         let mut indexes = tokio::fs::File::create(indexes_path).await?;
 
         indexes
             .write_all(
-                serde_json::to_string(&self.resources)
+                serde_json::to_string(resources)
                     .unwrap_or_default()
                     .as_bytes(),
             )
@@ -513,49 +418,11 @@ impl MinecraftDownloader {
     }
 
     /// When success all the assests folder are created
-    fn creater_assest_folders(&self, names: &[PathBuf]) -> Result<(), UraniumError> {
+    fn creater_assest_folders(&self, names: &[DownlodableObject]) -> Result<(), UraniumError> {
         for p in names {
-            std::fs::create_dir_all(self.destination_path.join(p).parent().unwrap())?;
+            std::fs::create_dir_all(self.destination_path.join(&p.name).parent().unwrap())?;
         }
 
-        Ok(())
-    }
-
-    fn check_files(&self) -> Result<(), UraniumError> {
-        let files: Vec<&ObjectData> = self.resources.as_ref().unwrap().objects.values().collect();
-        self.check_chunk(&files)
-    }
-
-    /// Check a chunk (`&[&ObjecData]`) of files
-    fn check_chunk(&self, files: &[&ObjectData]) -> Result<(), UraniumError> {
-        let partial_path = self.destination_path.join(ASSESTS_PATH).join(OBJECTS_PATH);
-        let res = files
-            .into_par_iter()
-            .map(|file| {
-                let file_path = partial_path.join(file.get_path());
-
-                let buffer = match std::fs::read(&file_path) {
-                    Ok(e) => e,
-                    Err(err) => {
-                        error!("Unable to read the file {}", err);
-                        return Err(err.into());
-                    }
-                };
-
-                // If buffer len is different we can save some Sha1 computations.
-                if buffer.len() != file.size || check_file(buffer, &file.hash).is_err() {
-                    error!("Error in file {}", file_path.to_str().unwrap());
-                    let mut guard = self.bad_files.write().unwrap();
-                    guard.push((*file).clone());
-                    // return Err(UraniumError::FileNotMatch);
-                }
-                Ok(())
-            })
-            .find_first(std::result::Result::is_err);
-
-        if let Some(Err(err)) = res {
-            return Err(err);
-        }
         Ok(())
     }
 
@@ -583,29 +450,41 @@ impl MinecraftDownloader {
     fn prepare_libraries(&mut self) -> Result<(), UraniumError> {
         let libraries = self.minecraft_instance.get_libs();
         let raw_paths = libraries.get_paths();
-        let urls = MinecraftDownloader::get_os_libraries(libraries);
+        let urls = Self::get_os_libraries(libraries);
 
         let good_paths: Vec<PathBuf> = raw_paths
             .iter()
-            .map(|p| PathBuf::from("libraries").join(p))
+            .map(|p| {
+                self.destination_path
+                    .join(PathBuf::from("libraries").join(p))
+            })
             .collect();
 
         for p in &good_paths {
-            std::fs::create_dir_all(self.destination_path.join(p).parent().unwrap())?;
+            std::fs::create_dir_all(p.parent().unwrap())?;
         }
 
-        self.downloader = Some(Downloader::new(
-            urls.into(),
-            good_paths,
-            self.destination_path.clone().into(),
-            self.requester.clone(),
-        ));
+        let files = good_paths
+            .iter()
+            .zip(&urls)
+            .zip(raw_paths)
+            .map(|((path, url), lib_path)| {
+                DownlodableObject::new(
+                    url,
+                    lib_path.file_name().unwrap().to_str().unwrap_or_default(),
+                    path.parent().unwrap(),
+                    None,
+                )
+            })
+            .collect();
+
+        self.downloader = Some(T::new(files));
 
         Ok(())
     }
 
     #[allow(clippy::await_holding_lock)]
-    async fn fix_wrong_file(&mut self) -> Result<(), UraniumError> {
+    async fn _fix_wrong_file(&mut self) -> Result<(), UraniumError> {
         while !self.bad_files.read().unwrap().is_empty() {
             let mut guard = self.bad_files.write().unwrap();
             warn!("{} wrong files, trying to fix them", guard.len());
@@ -613,7 +492,7 @@ impl MinecraftDownloader {
             let objects: Vec<ObjectData> = guard.drain(..).collect();
             drop(guard);
 
-            let names: Vec<PathBuf> = objects
+            let _names: Vec<PathBuf> = objects
                 .iter()
                 .map(|obj| {
                     PathBuf::from(ASSESTS_PATH)
@@ -623,21 +502,17 @@ impl MinecraftDownloader {
                 })
                 .collect();
 
-            let urls: Vec<String> = objects.iter().map(ObjectData::get_link).collect();
+            let _urls: Vec<String> = objects.iter().map(ObjectData::get_link).collect();
 
-            Downloader::new(
-                urls.into(),
-                names,
-                self.destination_path.clone().into(),
-                self.requester.clone(),
+            T::new(
+                // TODO, FIXME
+                vec![],
             )
-            .start()
+            .complete()
             .await?;
 
             // God forgive me until i found a better way to do this.
-            let aux: Vec<&ObjectData> = objects.iter().collect();
-
-            self.check_chunk(aux.as_slice())?;
+            let _aux: Vec<&ObjectData> = objects.iter().collect();
         }
 
         Ok(())

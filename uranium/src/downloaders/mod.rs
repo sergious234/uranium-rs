@@ -1,18 +1,21 @@
-pub mod minecraft_downloader;
-
 mod updater;
+pub use updater::update_modpack;
+
 mod curse_downloader;
+pub use curse_downloader::CurseDownloader;
+
 mod functions;
+
 mod gen_downloader;
+pub use gen_downloader::FileDownloader;
+pub use gen_downloader::Downloader;
+pub use gen_downloader::DownlodableObject;
+
+
 mod rinth_downloader;
+pub use rinth_downloader::RinthDownloader;
 
-// Re-export the structs/functions so the user dont have to:
-// use uranium::downloaders::rinth_downloader::RinthDownloader
-//
-// instead can:
-// use uranium::downloaders::RinthDownloader
 
-pub use self::curse_downloader::curse_modpack_downloader;
-pub use self::rinth_downloader::RinthDownloader;
-pub use self::updater::update_modpack;
-pub use self::minecraft_downloader::*;
+mod minecraft_downloader;
+pub use minecraft_downloader::*;
+

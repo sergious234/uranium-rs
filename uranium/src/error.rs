@@ -1,3 +1,5 @@
+use crate::downloaders::DownlodableObject;
+
 use thiserror::Error;
 
 
@@ -18,7 +20,9 @@ pub enum UraniumError {
     #[error("Error making the requests")]
     RequestError,
     #[error("File hash doesnt match")]
-    FileNotMatch,
+    FileNotMatch(DownlodableObject),
+    #[error("Files hashes doesnt match")]
+    FilesDontMatch(Vec<DownlodableObject>)
 }
 
 impl std::convert::From<std::io::Error> for UraniumError {

@@ -10,9 +10,5 @@ pub const CONFIG_DIR: &str = "config/";
 pub const OVERRIDES_FOLDER: &str = "overrides/";
 pub const PROFILES_FILE: &str = "launcher_profiles.json";
 
-pub static NTHREADS: RwLock<usize> = RwLock::new(32);
+pub static NTHREADS: RwLock<usize> = RwLock::new(16);
 
-
-// ERROR MESSAGES
-pub const DOWNLOAD_ERROR_MSG: &str = "Error with the download request";
-pub const CANT_CREATE_DIR: &str = "Cant create the directory";

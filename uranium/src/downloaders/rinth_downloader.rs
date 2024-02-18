@@ -1,4 +1,4 @@
-use super::gen_downloader::{DownloadState, Downloader};
+use super::gen_downloader::{DownloadState, DownlodableObject, FileDownloader};
 use crate::{
     code_functions::N_THREADS,
     error::UraniumError,
@@ -7,20 +7,19 @@ use crate::{
 };
 use log::info;
 use mine_data_strutcs::rinth::rinth_packs::{load_rinth_pack, RinthMdFiles, RinthModpack};
-use requester::requester::request_maker::RinthRequester;
 use std::path::{Path, PathBuf};
 
-/// `RinthDownloader` struct is responsable for downloading
+/// This struct is responsable for downloading
 /// the fiven modpack.
-pub struct RinthDownloader {
-    gen_downloader: Downloader<RinthRequester>,
+pub struct RinthDownloader<T: FileDownloader> {
+    gen_downloader: T,
     modpack: RinthModpack,
 }
 
 type Links = Vec<String>;
 type Names = Vec<PathBuf>;
 
-impl RinthDownloader {
+impl<T: FileDownloader> RinthDownloader<T> {
     /// Create a new `RinthDownloader` with the given `modpack_path` and `destination`
     ///
     /// # Errors
@@ -34,14 +33,16 @@ impl RinthDownloader {
         let destination = destination.as_ref().to_owned();
 
         Self::check_mods_dir(&destination)?;
+        Self::check_rp_dir(&destination)?;
         Self::check_config_dir(&destination)?;
 
+        let files = links.iter().zip(names.iter()).map(|(url, name)|
+            DownlodableObject::new(url, name.to_str().unwrap_or_default(), &destination, None)
+        ).collect();
+
         Ok(RinthDownloader {
-            gen_downloader: Downloader::new(
-                links.into(),
-                names,
-                destination.into(),
-                RinthRequester::new(),
+            gen_downloader: T::new(
+                files
             ),
             modpack,
         })
@@ -50,13 +51,13 @@ impl RinthDownloader {
     /// Returns the number of mods to download.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.gen_downloader.urls().len()
+        self.gen_downloader.requests_left()
     }
 
     /// Returns `true` if there are no mods to download.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.gen_downloader.urls().is_empty()
+    pub fn finished(&self) -> bool {
+        self.gen_downloader.requests_left() == 0
     }
 
     /// Returns the number of **CHUNKS** to download.
@@ -68,7 +69,7 @@ impl RinthDownloader {
     /// 32/2 = 16
     #[must_use]
     pub fn chunks(&self) -> usize {
-        self.gen_downloader.urls().len() / N_THREADS()
+        self.gen_downloader.requests_left() / N_THREADS()
     }
 
     /// Returns how many requests chunks are left.
@@ -127,8 +128,8 @@ impl RinthDownloader {
     ///
     /// # Errors
     /// This function can return an `Err(UraniumError)` like `progress` can.
-    pub async fn start(&mut self) -> Result<(), UraniumError> {
-        self.gen_downloader.start().await
+    pub async fn complete(&mut self) -> Result<(), UraniumError> {
+        self.gen_downloader.complete().await
     }
 
     /// Make progress.
@@ -141,13 +142,21 @@ impl RinthDownloader {
     /// # Errors
     /// In case the downloader fails to download or write the chunk this method will return an
     /// error with the corresponding variant.
-    pub async fn chunk(&mut self) -> Result<DownloadState, UraniumError> {
+    pub async fn progress(&mut self) -> Result<DownloadState, UraniumError> {
         self.gen_downloader.progress().await
     }
 
     fn check_mods_dir(destination: &Path) -> Result<(), UraniumError> {
         if !destination.join("mods").exists() {
             std::fs::create_dir(destination.join("mods"))
+                .map_err(|_| UraniumError::CantCreateDir)?;
+        }
+        Ok(())
+    }
+
+    fn check_rp_dir(destination: &Path) -> Result<(), UraniumError> {
+        if !destination.join("resourcepacks").exists() {
+            std::fs::create_dir(destination.join("resourcepacks"))
                 .map_err(|_| UraniumError::CantCreateDir)?;
         }
         Ok(())

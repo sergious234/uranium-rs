@@ -1,23 +1,41 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::pedantic)]
 
+//! # uranium
+//!
+//! The `uranium` crates provides a easy, high-level API for:
+//! - Downloading Minecraft instances, mods from Rinth/Curse
+//! - Making a modpack from given directory
+//! - Update a modpack from given directory
+//!
+//!
+//! Also `uranium` provides high modularity level when it comes to downloaders.
+//! Through the `
 
+use log::info;
 use std::path::Path;
 
-use downloaders::{RinthDownloader, minecraft_downloader::MinecraftDownloader};
-use error::{MakerError, UraniumError};
-use log::info;
-use modpack_maker::{ModpackMaker, State};
-use variables::constants::*;
-
 pub mod downloaders;
+pub use downloaders::{
+    CurseDownloader, Downloader, FileDownloader, MinecraftDownloadState, MinecraftDownloader,
+    RinthDownloader,
+};
+
 pub mod error;
+use error::{MakerError, UraniumError};
+
 pub mod modpack_maker;
+use modpack_maker::{ModpackMaker, State};
+
 pub mod searcher;
 
 mod code_functions;
+
 mod hashes;
+
 mod variables;
+use variables::constants::*;
+
 mod zipper;
 
 /// # Easy to go function
@@ -58,12 +76,34 @@ pub async fn make_modpack<I: AsRef<Path>>(minecraft_path: I) -> Result<(), Maker
 /// # Errors
 /// This function will return an `UraniumError` in case the download
 /// fails or when one or more paths are wrong.
+pub async fn curse_pack_download<I: AsRef<Path>>(
+    file_path: I,
+    destination_path: I,
+) -> Result<(), UraniumError> {
+    let mut curse_downloader =
+        CurseDownloader::<Downloader>::new(&file_path, &destination_path).await?;
+    curse_downloader.complete().await?;
+    Ok(())
+}
+
+/// # Easy to go function
+///
+/// This function will download the modpack specified by `file_path`
+/// into `destination_path`
+///
+/// If there is no mods and/or config folder inside `destination_path` then they
+/// will be created.
+///
+///
+/// # Errors
+/// This function will return an `UraniumError` in case the download
+/// fails or when one or more paths are wrong.
 pub async fn rinth_pack_download<I: AsRef<Path>>(
     file_path: I,
     destination_path: I,
 ) -> Result<(), UraniumError> {
-    let mut rinth_downloader = RinthDownloader::new(&file_path, &destination_path)?;
-    rinth_downloader.start().await?;
+    let mut rinth_downloader = RinthDownloader::<Downloader>::new(&file_path, &destination_path)?;
+    rinth_downloader.complete().await?;
     Ok(())
 }
 
@@ -78,7 +118,8 @@ pub async fn download_minecraft<I: AsRef<Path>>(
     instance: &str,
     destination_path: I,
 ) -> Result<(), UraniumError> {
-    let mut minecraft_downloader = MinecraftDownloader::init(destination_path, instance).await;
+    let mut minecraft_downloader =
+        MinecraftDownloader::<Downloader>::init(destination_path, instance).await;
     let _ = minecraft_downloader.start().await?;
     Ok(())
 }
@@ -105,14 +146,16 @@ pub fn set_threads(t: usize) {
 /// Will panic in case log files or `CombinedLogger` cant be created.
 pub fn init_logger() {
     use chrono::prelude::Local;
-    use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger};
+    use simplelog::{
+        ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger,
+    };
     use std::fs::File;
 
     let log_file_name = format!("log_{}.txt", Local::now().format("%H-%M-%S_%d-%m-%Y"));
-    let lastest_log_file = "lastest_log_file";
+    let lastest_log_file = "latest_log_file";
     CombinedLogger::init(vec![
         TermLogger::new(
-            LevelFilter::Warn,
+            LevelFilter::Info,
             Config::default(),
             TerminalMode::Mixed,
             ColorChoice::Auto,
@@ -129,4 +172,31 @@ pub fn init_logger() {
         ),
     ])
     .unwrap();
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[tokio::test]
+    async fn rinth_modpack_download() {
+        init_logger();
+        let status = rinth_pack_download("FO.mrpack", "prueba/").await;
+        if let Err(e) = status {
+            panic!("Minecraft download failed with error: {}", e);
+        }
+    }
+
+    /*
+    #[tokio::test]
+    async fn minecraft_download() {
+        init_logger();
+        let status = download_minecraft("1.20.4", "prueba/").await;
+        let _ = tokio::fs::remove_dir_all("prueba/").await;
+
+        if let Err(e) = status {
+            panic!("Minecraft download failed with error: {}", e);
+        }
+    }
+    */
 }

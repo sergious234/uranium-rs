@@ -4,13 +4,13 @@ use std::{
 };
 
 use crate::{error::UraniumError, variables::constants::TEMP_DIR};
-use log::error;
+use log::{error, warn};
 
 pub fn unzip_temp_pack<I: AsRef<Path>>(file_path: I) -> Result<(), UraniumError> {
     let zip_file = match File::open(file_path.as_ref()) {
         Ok(file) => file,
         Err(e) => {
-            error!("Error trying to open the zip file!: {}", e);
+            warn!("Error trying to open the zip file!: {}", e);
             return Err(UraniumError::FileNotFound);
         }
     };
