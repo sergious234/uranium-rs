@@ -1,20 +1,12 @@
 use std::env;
 
-use reqwest::header::HeaderMap;
-use tokio::{
-    task,
-    task::{spawn, JoinHandle},
-};
+use reqwest::{header::HeaderMap, RequestBuilder};
+use tokio::task;
 
 use crate::mod_searcher::Method;
 
 pub trait Req {
-    fn get(
-        &self,
-        url: &str,
-        method: Method,
-        body: &str,
-    ) -> task::JoinHandle<Result<reqwest::Response, reqwest::Error>>;
+    fn get(&self, url: &str, method: Method, body: &str) -> RequestBuilder;
 }
 
 #[derive(Clone)]
@@ -53,14 +45,9 @@ impl RinthRequester {
 }
 
 impl Req for RinthRequester {
-    fn get(
-        &self,
-        url: &str,
-        _method: Method,
-        _body: &str,
-    ) -> task::JoinHandle<Result<reqwest::Response, reqwest::Error>> {
+    fn get(&self, url: &str, _method: Method, _body: &str) -> RequestBuilder {
         let url = url.to_owned();
-        tokio::task::spawn(self.cliente.get(url).headers(self.headers.clone()).send())
+        self.cliente.get(url).headers(self.headers.clone())
     }
 }
 
@@ -95,37 +82,20 @@ impl CurseRequester {
 }
 
 impl Req for CurseRequester {
-    fn get(
-        &self,
-        url: &str,
-        method: Method,
-        body: &str,
-    ) -> JoinHandle<Result<reqwest::Response, reqwest::Error>> {
+    fn get(&self, url: &str, method: Method, _body: &str) -> RequestBuilder {
         let url = url.to_owned();
-        let body = body.to_owned();
 
-        let a_func = match method {
-            Method::GET => self.cliente.get(&url).headers(self.headers.clone()).send(),
-            Method::POST => self
-                .cliente
-                .post(&url)
-                .headers(self.headers.clone())
-                .body(body)
-                .send(),
-        };
-
-        spawn(a_func)
+        match method {
+            Method::GET => self.cliente.get(&url),
+            Method::POST => self.cliente.post(&url),
+        }
+        .headers(self.headers.clone())
     }
 }
 
 impl Req for reqwest::Client {
-    fn get(
-        &self,
-        url: &str,
-        _method: Method,
-        _body: &str,
-    ) -> task::JoinHandle<Result<reqwest::Response, reqwest::Error>> {
+    fn get(&self, url: &str, _method: Method, _body: &str) -> reqwest::RequestBuilder {
         let url = url.to_owned();
-        tokio::task::spawn(self.get(url).send())
+        self.get(url)
     }
 }

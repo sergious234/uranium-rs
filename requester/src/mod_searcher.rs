@@ -22,10 +22,12 @@ pub fn search_with_client(
     requester: &CurseRequester,
     request: &RequestInfo,
 ) -> JoinHandle<Result<reqwest::Response, reqwest::Error>> {
-    match request.method {
+    let req = match request.method {
         Method::GET => requester.get(&request.url, Method::GET, ""),
         Method::POST => requester.get(&request.url, Method::POST, &request.body),
-    }
+    };
+
+    tokio::spawn(async move {req.send().await})
 }
 
 pub fn search_mod_by_id(id: &str) -> task::JoinHandle<reqwest::Response> {
