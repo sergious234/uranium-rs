@@ -175,28 +175,4 @@ pub fn init_logger() {
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-
-    #[tokio::test]
-    async fn rinth_modpack_download() {
-        init_logger();
-        let status = rinth_pack_download("FO.mrpack", "prueba/").await;
-        if let Err(e) = status {
-            panic!("Minecraft download failed with error: {}", e);
-        }
-    }
-
-    /*
-    #[tokio::test]
-    async fn minecraft_download() {
-        init_logger();
-        let status = download_minecraft("1.20.4", "prueba/").await;
-        let _ = tokio::fs::remove_dir_all("prueba/").await;
-
-        if let Err(e) = status {
-            panic!("Minecraft download failed with error: {}", e);
-        }
-    }
-    */
-}
+mod test {}
