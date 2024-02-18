@@ -156,6 +156,10 @@ impl Library {
     pub fn get_url(&self) -> &str {
         self.downloads.artifact.url.as_str()
     }
+
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
 }
 
 /*

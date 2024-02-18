@@ -23,8 +23,8 @@ impl CursePackFiles {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CursePack {
-    name: String,
-    author: String,
+    pub name: String,
+    pub author: String,
     files: Vec<CursePackFiles>,
 }
 
