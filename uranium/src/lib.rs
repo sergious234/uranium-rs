@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-#![warn(clippy::pedantic)]
+#![warn(clippy::all)]
 
 //! # uranium
 //!
