@@ -10,7 +10,17 @@ use mine_data_strutcs::rinth::rinth_packs::{load_rinth_pack, RinthMdFiles, Rinth
 use std::path::{Path, PathBuf};
 
 /// This struct is responsable for downloading
-/// the fiven modpack.
+/// the given modpack.
+///
+/// Like CurseDownloader this struct takes a generic parameter which will be the
+/// downloader to use:
+///
+/// ```rust
+/// # use uranium::downloaders::Downloader;
+/// # use uranium::downloaders::RinthDownloader;
+/// # fn foo() {
+/// RinthDownloader::<Downloader>::new("modpack_path", "installation path");
+/// # }
 pub struct RinthDownloader<T: FileDownloader> {
     gen_downloader: T,
     modpack: RinthModpack,
@@ -30,14 +40,14 @@ impl<T: FileDownloader> RinthDownloader<T> {
         let modpack = Self::load_pack(modpack_path)?;
         let (links, names) = Self::get_data(&modpack);
 
-        let destination = destination.as_ref().to_owned();
+        let destination = destination.as_ref();
 
-        Self::check_mods_dir(&destination)?;
-        Self::check_rp_dir(&destination)?;
-        Self::check_config_dir(&destination)?;
+        Self::check_mods_dir(destination)?;
+        Self::check_rp_dir(destination)?;
+        Self::check_config_dir(destination)?;
 
         let files = links.iter().zip(names.iter()).map(|(url, name)|
-            DownlodableObject::new(url, name.to_str().unwrap_or_default(), &destination, None)
+            DownlodableObject::new(url, name.to_str().unwrap_or_default(), destination, None)
         ).collect();
 
         Ok(RinthDownloader {
@@ -51,7 +61,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
     /// Returns the number of mods to download.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.gen_downloader.requests_left()
+        self.gen_downloader.len()
     }
 
     /// Returns `true` if there are no mods to download.
@@ -69,7 +79,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
     /// 32/2 = 16
     #[must_use]
     pub fn chunks(&self) -> usize {
-        self.gen_downloader.requests_left() / N_THREADS()
+        self.gen_downloader.len() / N_THREADS()
     }
 
     /// Returns how many requests chunks are left.
@@ -128,6 +138,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
     ///
     /// # Errors
     /// This function can return an `Err(UraniumError)` like `progress` can.
+    #[must_use]
     pub async fn complete(&mut self) -> Result<(), UraniumError> {
         self.gen_downloader.complete().await
     }
@@ -142,6 +153,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
     /// # Errors
     /// In case the downloader fails to download or write the chunk this method will return an
     /// error with the corresponding variant.
+    #[must_use]
     pub async fn progress(&mut self) -> Result<DownloadState, UraniumError> {
         self.gen_downloader.progress().await
     }

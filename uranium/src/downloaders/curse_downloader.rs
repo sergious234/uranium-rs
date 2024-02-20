@@ -11,13 +11,21 @@ use mine_data_strutcs::{
     curse::{curse_modpacks::*, curse_mods::*},
     url_maker::maker::Curse,
 };
-use requester::{
-    mod_searcher::Method,
-    requester::request_maker::{CurseRequester, Req},
-};
 use reqwest::Response;
 use std::path::Path;
 
+
+/// This struct is responsable of downloading Curse modpacks.
+///
+/// Like RinthDownloader struct it takes a generic parameter which will be the
+/// downloader used:
+///
+/// ```rust
+/// # use uranium::downloaders::Downloader;
+/// # use uranium::downloaders::CurseDownloader;
+/// # async fn foo() {
+/// CurseDownloader::<Downloader>::new("modpack_path", "installation_path").await;
+/// # }
 pub struct CurseDownloader<T: FileDownloader> {
     gen_downloader: T,
     modpack: CursePack,
@@ -30,9 +38,9 @@ impl<T: FileDownloader> CurseDownloader<T> {
         destination: I,
     ) -> Result<Self, UraniumError> {
         let destination = destination.as_ref();
-        Self::check_mods_dir(&destination)?;
-        Self::check_rp_dir(&destination)?;
-        Self::check_config_dir(&destination)?;
+        Self::check_mods_dir(destination)?;
+        Self::check_rp_dir(destination)?;
+        Self::check_config_dir(destination)?;
 
         unzip_temp_pack(modpack_path)?;
 
@@ -50,9 +58,26 @@ impl<T: FileDownloader> CurseDownloader<T> {
             })
             .collect();
 
-        let curse_req = CurseRequester::new();
+        let mut header_map = reqwest::header::HeaderMap::new();
+        let (_, curse_api_key) = std::env::vars()
+            .find(|(v, _)| v == "CURSE_API_KEY")
+            .unwrap_or_default();
 
-        let responses: Vec<Response> = Self::get_mod_responses(&curse_req, &files_ids).await;
+        header_map
+            .insert("x-api-key", curse_api_key.parse().unwrap());
+        header_map
+            .insert("Content-Type", "application/json".parse().unwrap());
+        header_map
+            .insert("Accept", "application/json".parse().unwrap());
+
+        let client = reqwest::ClientBuilder::new()
+        .default_headers(header_map)
+        .build()
+        .expect("Curse client could not be created!");
+
+
+
+        let responses: Vec<Response> = Self::get_mod_responses(&client, &files_ids).await;
         let mut files = Vec::with_capacity(responses.len());
         let mods_path = destination.join("mods/");
 
@@ -72,10 +97,14 @@ impl<T: FileDownloader> CurseDownloader<T> {
         })
     }
 
+    /// This function will call `FileDownloader::progress()` and returns it's 
+    /// output.
     pub async fn progress(&mut self) -> Result<DownloadState, UraniumError> {
         self.gen_downloader.progress().await
     }
 
+    /// This function will call `FileDownloader::complete' and returns it's 
+    /// output.
     pub async fn complete(&mut self) -> Result<(), UraniumError> {
         self.gen_downloader.complete().await
     }
@@ -83,7 +112,7 @@ impl<T: FileDownloader> CurseDownloader<T> {
     /// Returns the number of mods to download.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.gen_downloader.requests_left()
+        self.gen_downloader.len()
     }
 
     /// Returns `true` if there are no mods to download.
@@ -101,7 +130,7 @@ impl<T: FileDownloader> CurseDownloader<T> {
     /// 32/2 = 16
     #[must_use]
     pub fn chunks(&self) -> usize {
-        self.gen_downloader.requests_left() / N_THREADS()
+        self.gen_downloader.len() / N_THREADS()
     }
 
     /// Returns how many requests chunks are left.
@@ -125,29 +154,29 @@ impl<T: FileDownloader> CurseDownloader<T> {
 
 // TODO: This is repeated in RinthDownloader, maybe put this functions in
 // code_functions.rs ?
+//
+// Also how requests are done should look like Downloader where tasks are spawned. 
 impl<T: FileDownloader> CurseDownloader<T> {
-    async fn get_mod_responses(curse_req: &CurseRequester, files_ids: &[String]) -> Vec<Response> {
+    async fn get_mod_responses(curse_req: &reqwest::Client, files_ids: &[String]) -> Vec<Response> {
         let mut responses: Vec<Response> = Vec::with_capacity(files_ids.len());
         let threads: usize = N_THREADS();
 
         for chunk in files_ids.chunks(threads) {
-            let mut requests = Vec::new();
+            let mut requests = Vec::with_capacity(chunk.len());
             for url in chunk {
-                let tarea = curse_req.get(url, Method::GET, "").send();
+                let tarea = async move {curse_req.get(url).send()}.await;
                 requests.push(tarea);
             }
-            //pool.push_request_vec(requests);
-
             let res: Vec<Response> = join_all(requests).await.into_iter().flatten().collect();
-
-            // Wait for the current pool to end and append the results
-            // to the results vector
             responses.extend(res);
         }
 
         responses
     }
 
+    // Duplicate code ? Maybe
+    // DRY ? Nope
+    // Wet ? ;)
     fn check_mods_dir(destination: &Path) -> Result<(), UraniumError> {
         if !destination.join("mods").exists() {
             std::fs::create_dir(destination.join("mods"))
