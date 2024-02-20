@@ -15,6 +15,8 @@ pub enum UraniumError {
     CantCreateDir,
     #[error("Error while writting the files")]
     WriteError(std::io::Error),
+    #[error("IO Error")]
+    IOError(std::io::Error),
     #[error("Error downloading files")]
     DownloadError,
     #[error("Error making the requests")]
@@ -25,9 +27,21 @@ pub enum UraniumError {
     FilesDontMatch(Vec<DownlodableObject>)
 }
 
+//TODO:
+// use value
+impl std::convert::From<reqwest::Error> for UraniumError {
+    fn from(_value: reqwest::Error) -> Self {
+        UraniumError::RequestError
+    }
+}
+
 impl std::convert::From<std::io::Error> for UraniumError {
     fn from(value: std::io::Error) -> Self {
-        UraniumError::WriteError(value)
+        type IOE = std::io::ErrorKind;
+        match value.kind() {
+            IOE::PermissionDenied | IOE::NotFound => UraniumError::WriteError(value),
+            _ => UraniumError::IOError(value)
+        }
     }
 }
 
