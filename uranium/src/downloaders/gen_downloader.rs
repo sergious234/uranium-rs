@@ -1,6 +1,6 @@
 use crate::{code_functions::N_THREADS, error::UraniumError};
 use futures::{future::join_all, StreamExt};
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use reqwest::Response;
 use sha1::Digest;
 use std::{
@@ -12,11 +12,12 @@ use tokio::{io::AsyncWriteExt, task::JoinHandle};
 
 /// Download files asynchronously.  
 ///
-/// This trait allows the user to make their own `FileDownloader` and use it with
-/// the differents downloader such us:
+/// This trait allows the user to make their own `FileDownloader` and use it
+/// with the differents downloader such us:
 /// - `MinecraftDownloader`
 /// - `RinthDownloader`
 /// - `CurseDownloader`
+///
 ///
 #[allow(async_fn_in_trait)]
 pub trait FileDownloader {
@@ -26,30 +27,34 @@ pub trait FileDownloader {
     /// It returns the current `DownloadState`, which represents the state of
     /// the download process.
     ///
-    /// If there are pending `DownlodableObject` and the number of active tasks is less than
-    /// the maximum allowed threads, this method will make additional requests to fetch data.
+    /// If there are pending `DownlodableObject` and the number of active tasks
+    /// is less than the maximum allowed threads, this method will make
+    /// additional requests to fetch data.
     ///
     /// If there are active tasks, it will check their status and handle
     /// completed tasks accordingly.
     ///
     /// # Errors
     ///
-    /// This method can return an error of type `UraniumError` in the following cases:
+    /// This method can return an error of type `UraniumError` in the following
+    /// cases:
     ///
     /// - If there is an error while making requests or processing tasks.
     ///
     /// # Returns
     ///
     /// This method returns a `Result<DownloadState, UraniumError>`, where
-    /// `DownloadState` represents the current state of the download process, and `UraniumError`
-    /// is the error type that occurs in case of failure.
+    /// `DownloadState` represents the current state of the download process,
+    /// and `UraniumError` is the error type that occurs in case of failure.
     async fn progress(&mut self) -> Result<DownloadState, UraniumError>;
 
-    /// This method calls `Self::progress()` repeatdly until it returns `DownloadState::Completed`.
+    /// This method calls `Self::progress()` repeatdly until it returns
+    /// `DownloadState::Completed`.
     ///
     /// # Errors
     ///
-    /// This method can return an error of type `UraniumError` in the following cases:
+    /// This method can return an error of type `UraniumError` in the following
+    /// cases:
     ///
     /// - If there is an error while making requests or processing tasks.
     ///
@@ -70,7 +75,13 @@ pub trait FileDownloader {
     fn new(files: Vec<DownlodableObject>) -> Self;
 
     /// Return how many requests are left.
+    ///
+    /// This method is important when it comes to know the % of the
+    /// already downloaded files.
     fn requests_left(&self) -> usize;
+
+    /// Return how many requests the downloader has.
+    fn len(&self) -> usize;
 }
 
 /// Indicates the state of the downloader
@@ -81,6 +92,8 @@ pub enum DownloadState {
     Completed,
 }
 
+// TODO: Add Sha5 
+/// Indicates which hash the file uses for verification. 
 #[derive(Debug, Clone)]
 pub enum HashType {
     Sha1(String),
@@ -153,12 +166,14 @@ impl FileDownloader for Downloader {
 
     /// Returns how many requests are left.
     fn requests_left(&self) -> usize {
+        self.files.len() - self.start
+    }
+
+    fn len(&self) -> usize {
         self.files.len()
     }
 
     async fn progress(&mut self) -> Result<DownloadState, UraniumError> {
-        debug!("Start: {} || Tasks: {}", self.start, self.tasks.len());
-
         while self.files.len() != self.start && self.tasks.len() < self.max_threads {
             self.make_requests().await?;
         }
@@ -176,7 +191,7 @@ impl FileDownloader for Downloader {
                         guard = true;
                         match task.await.unwrap() {
                             Err(UraniumError::FilesDontMatch(objects)) => {
-                                self.files.extend(objects)
+                                self.files.extend(objects);
                             }
                             Err(e) => Err(e)?,
                             Ok(_) => {}
@@ -193,7 +208,7 @@ impl FileDownloader for Downloader {
             // In case no task is finished yet we wait for the first one
             if !self.tasks.is_empty() {
                 warn!("Waiting the first one...");
-                // UNWRAP SAFETY: Can't be empty since we are checking. 
+                // UNWRAP SAFETY: Can't be empty since we are checking.
                 match self.tasks.pop_front().unwrap().await.unwrap() {
                     Err(UraniumError::FilesDontMatch(objects)) => self.files.extend(objects),
                     Err(e) => Err(e)?,
@@ -233,17 +248,13 @@ impl Downloader {
         let responses: Vec<Result<Response, reqwest::Error>> =
             join_all(requests_vec).await.into_iter().flatten().collect();
 
-        if let Some(e) = responses.iter().find(|e| e.is_err()) {
-            error!("{:?}", e);
+        if let Some(i) = responses.iter().position(|e| e.is_err()) {
+            error!("{:?}", responses[i]);
             return Err(UraniumError::RequestError);
         }
-
         let responses = responses.into_iter().flatten().collect();
 
-        let files = self.files[self.start..self.start + chunk_size]
-            .iter()
-            .cloned()
-            .collect();
+        let files = self.files[self.start..self.start + chunk_size].to_vec();
         let task = tokio::spawn(async move { download_and_write(files, responses).await });
 
         info!("Pushing new task {}", self.start);
@@ -276,8 +287,7 @@ async fn download_and_write(
                 .write(true)
                 .truncate(true)
                 .open(&file_path)
-                .await
-                .inspect_err(|e| error!("An error ocurred trying to open {:?}: {:?}", file_path, e))?;
+                .await?;
 
             let mut total = 0;
             let mut buffer = Vec::with_capacity(content_length);
@@ -286,7 +296,7 @@ async fn download_and_write(
                 match file.write(&chunk).await {
                     Err(e) => {
                         error!("Can not write in {:?}: {}", file_path, e);
-                        return Err(UraniumError::DownloadError);
+                        return Err(e.into());
                     }
                     Ok(n) => total += n,
                 };

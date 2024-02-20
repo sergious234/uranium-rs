@@ -7,9 +7,7 @@ pub use curse_downloader::CurseDownloader;
 mod functions;
 
 mod gen_downloader;
-pub use gen_downloader::FileDownloader;
-pub use gen_downloader::Downloader;
-pub use gen_downloader::DownlodableObject;
+pub use gen_downloader::*;
 
 
 mod rinth_downloader;
