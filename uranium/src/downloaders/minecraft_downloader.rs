@@ -1,6 +1,6 @@
 use super::gen_downloader::{DownloadState, DownlodableObject, FileDownloader, HashType};
 use crate::{code_functions::N_THREADS, error::UraniumError, variables::constants::PROFILES_FILE};
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use mine_data_strutcs::minecraft::{
     Lib, Libraries, MinecraftInstance, MinecraftInstances, ObjectData, ProfileData, ProfilesJson,
     Resources,
@@ -52,6 +52,7 @@ pub async fn list_instances() -> Result<MinecraftInstances, UraniumError> {
 
 */
 
+/// Indicates the download state of a Minecraft instance.
 #[derive(Debug, Clone)]
 pub enum MinecraftDownloadState {
     GettingSources,
@@ -68,7 +69,7 @@ pub enum MinecraftDownloadState {
 /// # Example:
 ///
 /// ```no_run
-/// use uranium::{FileDownloader, MinecraftDownloader, MinecraftDownloadState};
+/// use uranium::downloaders::{FileDownloader, MinecraftDownloader, MinecraftDownloadState};
 ///
 /// # fn foo<T: FileDownloader + Send + Sync>() {
 /// async {
@@ -125,8 +126,8 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     ///
     /// This will panic:
     /// ```
-    /// use uranium::MinecraftDownloader;
-    /// use uranium::FileDownloader;
+    /// use uranium::downloaders::MinecraftDownloader;
+    /// use uranium::downloaders::FileDownloader;
     ///
     /// # fn foo<T: FileDownloader + Send + Sync>() {
     /// // Where T: FileDownloader + Send + Sync
@@ -212,27 +213,6 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             }
 
             MinecraftDownloadState::DownloadingIndexes => {
-                // let resources = self.resources.as_ref().unwrap();
-
-                // let mut objects: Vec<&ObjectData> = resources.objects.values().collect();
-                // objects.sort_by(|a, b| b.size.cmp(&a.size));
-
-                /*
-                let mut files = Vec::with_capacity(objects.len());
-                let base = PathBuf::from(ASSESTS_PATH).join(OBJECTS_PATH);
-
-                for obj in objects {
-                    let url = obj.get_link();
-                    let path = base.join(&obj.hash[..2]).join(&obj.hash);
-                    files.push(DownlodableObject::new(
-                        &url,
-                        path.to_str().unwrap_or_default(),
-                        &self.destination_path,
-                        Some(HashType::Sha1(obj.hash.to_owned())),
-                    ));
-                }
-                */
-
                 if self.creater_assest_folders(&self.resources).is_err() {
                     error!("Error creating assests folders");
                     return Err(UraniumError::CantCreateDir);
@@ -323,13 +303,11 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         (n / N_THREADS() as f64).ceil() as usize
     }
 
-    /// This function will return `Some(x)` if sources is set.
+    /// Return the number of chunks to download.
     ///
-    /// Where `x` is the number of objects (assets) to download / `N_THREADS()`
-    ///
-    /// If sources is not set then it will return None.
+    /// If the downloader is empty, then this method will download 0.
     pub fn chunks(&self) -> usize {
-        let n = self.resources.len() as f64;
+        let n = self.downloader.as_ref().map(|d| d.len()).unwrap_or_default() as f64;
         (n / N_THREADS() as f64).ceil() as usize
     }
 
