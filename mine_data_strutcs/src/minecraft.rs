@@ -1,8 +1,9 @@
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
 };
+
+use serde::{Deserialize, Serialize};
 
 const BASE: &str = "https://resources.download.minecraft.net/";
 
@@ -165,7 +166,7 @@ impl Library {
 /*
 
 
-    ASSESTS INDEX DATA
+    ASSETS INDEX DATA
 
 
 */
@@ -336,7 +337,7 @@ impl ProfilesJson {
     ///
     /// # Panic
     ///
-    /// This function wont panic.
+    /// This function won't panic.
     pub fn read_json_from<I: AsRef<std::path::Path>>(
         path: I,
     ) -> Result<ProfilesJson, std::io::Error> {

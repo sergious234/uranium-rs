@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 /// This struct only contains data about the mod logo.
-struct Logo {
+pub struct Logo {
     id: usize,
     #[serde(rename="modId")]
     mod_id: usize,
@@ -70,7 +70,7 @@ struct FingerPrintInfo {
 }
 
 /// This struct contains the data about the request of a fingerprint
-/// Fingerprint requets are like 
+/// requests are like
 /// ```json
 /// "data": {
 ///     exactMatches: [

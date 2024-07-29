@@ -3,6 +3,7 @@ use crate::rinth::rinth_mods::RinthProject;
 const BASE_CUR_URL: &str = "https://api.curseforge.com";
 
 #[allow(unused)]
+#[deprecated]
 const BASE_MRN_URL: &str = "https://api.modrinth.com/api/v1/mod";
 const BASE_MRN_URL2: &str = "https://api.modrinth.com/v2";
 
@@ -17,6 +18,14 @@ impl ModRinth {
         format!("{}/search?limit={}&offset={}", BASE_MRN_URL2, limit, offset)
     }
 
+    pub fn get_categories() -> String {
+        "https://api.modrinth.com/v2/tag/category".into()
+    }
+
+    pub fn get_loaders() -> String {
+        "https://api.modrinth.com/v2/tag/loader".into()
+    }
+
     pub fn get_project_by_id(id: &str) -> String {
         // https://api.modrinth.com/v2/project/6AQIaxuO
         format!("{}/project/{}", BASE_MRN_URL2, id)
@@ -27,7 +36,7 @@ impl ModRinth {
         format!(
             "{}/project/{}/version",
             BASE_MRN_URL2,
-            minecraft_mod.get_id()
+            minecraft_mod.id
         )
     }
 
@@ -55,8 +64,18 @@ impl ModRinth {
         format!("{}/version/{}", BASE_MRN_URL2, id)
     }
 
-    pub fn querry(q: &str) -> String {
+    pub fn query(q: &str) -> String {
         format!("{}/search?query={}", BASE_MRN_URL2, q)
+    }
+
+    pub fn projects(ids: &[String]) -> String {
+        let mut url = format!("{}/projects?ids=[",BASE_MRN_URL2);
+        for id in &ids[..ids.len()-1] {
+            url.push_str(format!(" \"{}\",", id).as_str());
+        }
+        url.push_str(format!(" \"{}\"", ids.last().expect("No last element")).as_str());
+        url.push(']');
+        url
     }
 
     pub fn hash(hash: &str) -> String {

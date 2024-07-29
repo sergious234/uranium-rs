@@ -1,6 +1,8 @@
-use super::rinth_mods::{Hashes, RinthVersion};
-use serde::{Deserialize, Serialize};
 use std::{fs::read_to_string, path::PathBuf};
+use std::path::Path;
+use serde::{Deserialize, Serialize};
+
+use super::rinth_mods::{Hashes, RinthVersion};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RinthModpack {
@@ -24,7 +26,7 @@ impl RinthModpack {
         }
     }
 
-    pub fn get_mods(&self) -> &Vec<RinthMdFiles> {
+    pub fn get_mods(&self) -> &[RinthMdFiles] {
         &self.files
     }
 
@@ -59,27 +61,31 @@ pub struct RinthMdFiles {
     file_size: usize,
 }
 
-impl std::convert::From<RinthVersion> for RinthMdFiles {
+impl From<RinthVersion> for RinthMdFiles {
     fn from(version: RinthVersion) -> RinthMdFiles {
         RinthMdFiles {
-            path: ("mods/".to_owned() + &version.get_file_name()).into(),
+            path: ("mods/".to_owned() + version.get_file_name()).into(),
             hashes: version.get_hashes().clone(),
-            downloads: vec![version.get_file_url()],
+            downloads: vec![version.get_file_url().to_string()],
             file_size: version.get_size(),
         }
     }
 }
 
 impl RinthMdFiles {
-    pub fn get_download_link(&self) -> String {
-        self.downloads[0].clone()
-    }
-
-    pub fn get_download_link_raw(&self) -> &str {
+    pub fn get_download_link(&self) -> &str {
         &self.downloads[0]
     }
 
     pub fn get_id(&self) -> Option<&str> {
+
+        /*
+            So the download link should be something like this:
+            https://cdn.modrinth.com/data/DOUdJVEm/versions/QiCZiPOr/Controlify-2.0.0-beta.14%2B1.21-fabric.jar
+                                          ^^^^^^^^
+            And this code just extract     this     part and return it.
+        */
+
         for download_link in &self.downloads {
             if download_link.contains("modrinth") {
                 return download_link.split("data/").nth(1).map(|f| &f[0..8]);
@@ -88,33 +94,23 @@ impl RinthMdFiles {
         None
     }
 
-    pub fn get_name(&self) -> PathBuf {
-        self.path.clone()
-        // self.path.strip_prefix("mods/").unwrap().to_owned()
+    pub fn get_name(&self) -> String {
+        // Oh god, I hate Rust strings.
+        self.path.file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string()
     }
 
-    pub fn get_raw_name(&self) -> &PathBuf {
+    pub fn get_path(&self) -> &Path {
         &self.path
-        // self.path.file_name().unwrap().to_os_string().into_string().unwrap()
-        /*
-        self.path.strip_prefix("mods/").expect(
-            &format!("ERROR: Cant get raw name of {}", self.path)
-        )
-            */
     }
 }
 
-fn deserializ_pack(path: &str) -> Option<RinthModpack> {
-    serde_json::from_str(&read_to_string(path).unwrap()).ok()
-}
-
-pub fn load_rinth_pack(pack_path: &str) -> Option<RinthModpack> {
-    match read_to_string(pack_path) {
-        Ok(_) => {}
-        Err(_) => {
-            return None;
-        }
-    };
-
-    deserializ_pack(pack_path)
+pub fn load_rinth_pack<I: AsRef<Path>>(pack_path: I) -> Option<RinthModpack> {
+     read_to_string(&pack_path)
+         .map(|s| serde_json::from_str(&s).ok())
+         .ok()
+         .flatten()
 }
