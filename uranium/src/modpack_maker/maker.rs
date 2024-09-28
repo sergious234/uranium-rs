@@ -4,17 +4,14 @@ use std::{
 };
 
 use futures::future::join_all;
-
 use log::error;
-use mine_data_strutcs::{
-    rinth::{rinth_mods::RinthVersion, rinth_packs::RinthModpack},
-    url_maker::maker,
-};
+use mine_data_structs::rinth::{RinthModpack, RinthVersion};
 use reqwest::Response;
 
+use crate::searcher::rinth::{SearchBuilder, SearchType};
 use crate::{
-    code_functions::N_THREADS, error::MakerError, hashes::rinth_hash, variables::constants,
-    zipper::compress_pack,
+    code_functions::N_THREADS, error::Result, error::UraniumError, hashes::rinth_hash,
+    variables::constants, zipper::compress_pack,
 };
 
 type HashFilename = Vec<(String, String)>;
@@ -35,7 +32,7 @@ pub enum State {
     Finish,
 }
 
-/// This struct is responsable for the creation
+/// This struct is responsible for the creation
 /// of the modpacks given a minecraft path.
 pub struct ModpackMaker {
     path: PathBuf,
@@ -44,12 +41,13 @@ pub struct ModpackMaker {
     mods_states: Vec<ParseState>,
     rinth_pack: RinthModpack,
     raw_mods: Vec<PathBuf>,
-    cliente: reqwest::Client,
+    client: reqwest::Client,
+    modpack_path: PathBuf,
     threads: usize,
 }
 
 impl ModpackMaker {
-    pub fn new<I: AsRef<Path>>(path: I) -> ModpackMaker {
+    pub fn new<I: AsRef<Path>, J: AsRef<Path>>(path: I, modpack_name: J) -> ModpackMaker {
         ModpackMaker {
             path: path.as_ref().to_path_buf(),
             current_state: State::Starting,
@@ -57,39 +55,48 @@ impl ModpackMaker {
             mods_states: vec![],
             rinth_pack: RinthModpack::new(),
             raw_mods: vec![],
-            cliente: reqwest::Client::new(),
+            client: reqwest::ClientBuilder::new()
+                .user_agent("uranium-rs/mp-maker contact: sergious234@gmail.com")
+                .build()
+                .unwrap(),
+            modpack_path: modpack_name
+                .as_ref()
+                .to_path_buf(),
             threads: N_THREADS(),
         }
     }
 
     /// Starts the mod maker process.
     ///
-    /// This method initializes the mod maker, reads the mods, and prepares internal data structures for processing.
+    /// This method initializes the mod maker, reads the mods, and prepares
+    /// internal data structures for processing.
     ///
     /// # Errors
     ///
-    /// This method can return an error of type `MakerError` in the following cases:
+    /// This method can return an error of type `UraniumError` in the following
+    /// cases:
     ///
     /// - If there is an error while reading the mods.
     ///
     /// # Returns
     ///
-    /// This method returns `Ok(())` if the mod maker was successfully started and prepared for processing.
+    /// This method returns `Ok(())` if the mod maker was successfully started
+    /// and prepared for processing.
     ///
     /// # Example
     ///
     /// ```no_run
     /// use uranium::modpack_maker::ModpackMaker;
-    /// use uranium::error::MakerError;
+    /// use uranium::error::UraniumError;
     ///
-    /// let mut mod_maker = ModpackMaker::new("path/to/your/modpack");
+    /// let mut mod_maker = ModpackMaker::new("path/to/your/modpack", "my_modpack");
     ///
     /// match mod_maker.start() {
     ///     Ok(()) => println!("Mod maker started successfully!"),
     ///     Err(err) => eprintln!("Error starting mod maker: {:?}", err),
     /// }
     /// ```
-    pub fn start(&mut self) -> Result<(), MakerError> {
+    pub fn start(&mut self) -> Result<()> {
         self.hash_filenames = self.read_mods()?;
         self.mods_states = Vec::with_capacity(self.hash_filenames.len());
         Ok(())
@@ -97,32 +104,35 @@ impl ModpackMaker {
 
     /// Finishes the mod maker process.
     ///
-    /// This asynchronous method continues processing chunks until the mod maker has completed its work.
+    /// This asynchronous method continues processing chunks until the mod maker
+    /// has completed its work.
     ///
     /// # Errors
     ///
-    /// This method can return an error of type `MakerError` if any error occurs during the mod making process.
+    /// This method can return an error of type `UraniumError` if any error
+    /// occurs during the mod making process.
     ///
     /// # Returns
     ///
-    /// This method returns `Ok(())` if the mod maker has successfully completed its work.
+    /// This method returns `Ok(())` if the mod maker has successfully completed
+    /// its work.
     ///
     /// # Example
     ///
     /// ```no_run
-    /// async {
+    /// # async {
     ///     use uranium::modpack_maker::ModpackMaker;
-    ///     use uranium::error::MakerError;
+    ///     use uranium::error::UraniumError;
     ///
-    ///     let mut mod_maker = ModpackMaker::new("your/modpack/path");
+    ///     let mut mod_maker = ModpackMaker::new("your/modpack/path", "my_modpack");
     ///
     ///     match mod_maker.finish().await {
     ///         Ok(()) => println!("Mod maker finished successfully!"),
     ///         Err(err) => eprintln!("Error finishing mod maker: {:?}", err),
     ///     }
-    /// };
+    /// # };
     /// ```
-    pub async fn finish(&mut self) -> Result<(), MakerError> {
+    pub async fn finish(&mut self) -> Result<()> {
         loop {
             match self.chunk().await {
                 Ok(State::Finish) => return Ok(()),
@@ -139,7 +149,7 @@ impl ModpackMaker {
         self.hash_filenames.len()
     }
 
-    /// Returns true if the are no mods in the minecraft directory
+    /// Returns true if there are no mods in the minecraft directory
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -159,14 +169,14 @@ impl ModpackMaker {
     /// It will return the current State of the process.
     ///
     /// # Errors
-    /// In case any of the steps fails this method will return `Err(MakerError)` with the
-    /// cause.
+    /// In case any of the steps fails this method will return
+    /// `Err(UraniumError)` with the cause.
     ///
-    /// Can return any of the following variants: <br>
-    /// - `MakerError::CantReadModsDir` <br>
-    /// - `MakerError::CantCompress` <br>
-    /// - `MakerError::CantRemoveJSON`
-    pub async fn chunk(&mut self) -> Result<State, MakerError> {
+    /// Can return any of the following variants:
+    /// - `UraniumError::CantReadModsDir` <br>
+    /// - `UraniumError::CantCompress` <br>
+    /// - `UraniumError::CantRemoveJSON`
+    pub async fn chunk(&mut self) -> Result<State> {
         self.current_state = match self.current_state {
             State::Starting => {
                 if self.hash_filenames.is_empty() {
@@ -185,22 +195,27 @@ impl ModpackMaker {
             State::Checking => {
                 for rinth_mod in &self.mods_states {
                     match rinth_mod {
-                        ParseState::Good(m) => self.rinth_pack.add_mod(m.clone().into()),
-                        ParseState::Raw(file_name) => self.raw_mods.push(PathBuf::from(file_name)),
+                        ParseState::Good(m) => self
+                            .rinth_pack
+                            .add_mod(m.clone().into()),
+                        ParseState::Raw(file_name) => self
+                            .raw_mods
+                            .push(PathBuf::from(file_name)),
                     }
                 }
                 State::Writing
             }
             State::Writing => {
-                self.rinth_pack.write_mod_pack_with_name();
+                self.rinth_pack
+                    .write_mod_pack_with_name();
 
-                if let Err(e) = compress_pack("modpack", &self.path, &self.raw_mods) {
+                if let Err(e) = compress_pack(&self.modpack_path, &self.path, &self.raw_mods) {
                     error!("Error while compressing the modpack: {}", e);
-                    return Err(MakerError::CantCompress);
+                    return Err(UraniumError::CantCompress);
                 }
 
                 std::fs::remove_file(constants::RINTH_JSON)
-                    .map_err(|_| MakerError::CantRemoveJSON)?;
+                    .map_err(|_| UraniumError::CantRemoveJSON)?;
 
                 State::Finish
             }
@@ -217,30 +232,50 @@ impl ModpackMaker {
             self.threads
         };
 
-        let chunk: HashFilename = self.hash_filenames.drain(0..end).collect();
+        let chunk: HashFilename = self
+            .hash_filenames
+            .drain(0..end)
+            .collect();
 
         // Get rinth_responses
         let mut rinth_responses = Vec::with_capacity(chunk.len());
 
         let reqs = chunk
             .iter()
-            .map(|f| tokio::task::spawn(self.cliente.get(maker::ModRinth::hash(&f.0)).send()))
-            .collect::<Vec<tokio::task::JoinHandle<Result<Response, reqwest::Error>>>>();
+            .map(|f| {
+                tokio::task::spawn(
+                    self.client
+                        .get(
+                            SearchBuilder::new()
+                                .search_type(SearchType::VersionFile { hash: f.0.clone() })
+                                .build_url(),
+                        )
+                        .send(),
+                )
+            })
+            .collect::<Vec<tokio::task::JoinHandle<std::result::Result<Response, reqwest::Error>>>>(
+            );
 
         let responses = join_all(reqs)
             .await
             .into_iter()
             .flatten()
-            .collect::<Vec<Result<Response, reqwest::Error>>>();
+            .map(|x| x.map_err(|e| e.into()))
+            .collect::<Vec<Result<Response>>>();
 
         rinth_responses.extend(responses);
 
         let rinth_parses = parse_responses(rinth_responses).await;
-        for (file_name, rinth) in chunk.into_iter().zip(rinth_parses.into_iter()) {
+        for (file_name, rinth) in chunk
+            .into_iter()
+            .zip(rinth_parses.into_iter())
+        {
             if let Ok(m) = rinth {
-                self.mods_states.push(ParseState::Good(m));
+                self.mods_states
+                    .push(ParseState::Good(m));
             } else {
-                self.mods_states.push(ParseState::Raw(file_name.1));
+                self.mods_states
+                    .push(ParseState::Raw(file_name.1));
             }
         }
     }
@@ -251,8 +286,10 @@ impl ModpackMaker {
     ///
     /// # Panic
     /// This function will panic when path is not a dir.
-    fn read_mods(&mut self) -> Result<HashFilename, MakerError> {
-        assert!(self.path.is_dir(), "{:?} is not a dir", self.path);
+    fn read_mods(&mut self) -> Result<HashFilename> {
+        if !self.path.is_dir() {
+            return Err(UraniumError::CantReadModsDir);
+        }
 
         let mods_path = self.path.join("mods/");
 
@@ -263,7 +300,7 @@ impl ModpackMaker {
                 .collect::<Vec<PathBuf>>(),
             Err(e) => {
                 error!("Error reading the directory: {}", e);
-                return Err(MakerError::CantReadModsDir);
+                return Err(UraniumError::CantReadModsDir);
             }
         };
 
@@ -285,13 +322,18 @@ impl ModpackMaker {
     }
 }
 
-async fn parse_responses(
-    responses: Vec<Result<reqwest::Response, reqwest::Error>>,
-) -> Vec<Result<RinthVersion, reqwest::Error>> {
+async fn parse_responses(responses: Vec<Result<Response>>) -> Vec<Result<RinthVersion>> {
     join_all(
         responses
             .into_iter()
-            .map(|request| request.unwrap().json::<RinthVersion>()),
+            .map(|request| {
+                request
+                    .unwrap()
+                    .json::<RinthVersion>()
+            }),
     )
     .await
+    .into_iter()
+    .map(|x| x.map_err(|e| e.into()))
+    .collect::<Vec<Result<RinthVersion>>>()
 }
