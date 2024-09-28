@@ -1,15 +1,18 @@
-use super::gen_downloader::{DownloadState, DownlodableObject, FileDownloader};
+use std::path::{Path, PathBuf};
+
+use log::info;
+use mine_data_structs::rinth::{load_rinth_pack, RinthMdFiles, RinthModpack};
+
+use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader};
+use crate::zipper::pack_unzipper::remove_temp_pack;
 use crate::{
     code_functions::N_THREADS,
-    error::UraniumError,
+    error::{Result, UraniumError},
     variables::constants::{RINTH_JSON, TEMP_DIR},
     zipper::pack_unzipper::unzip_temp_pack,
 };
-use log::info;
-use mine_data_strutcs::rinth::rinth_packs::{load_rinth_pack, RinthMdFiles, RinthModpack};
-use std::path::{Path, PathBuf};
 
-/// This struct is responsable for downloading
+/// This struct is responsible for downloading
 /// the given modpack.
 ///
 /// Like CurseDownloader this struct takes a generic parameter which will be the
@@ -18,9 +21,12 @@ use std::path::{Path, PathBuf};
 /// ```rust
 /// # use uranium::downloaders::Downloader;
 /// # use uranium::downloaders::RinthDownloader;
-/// # fn foo() {
-/// RinthDownloader::<Downloader>::new("modpack_path", "installation path");
+/// # use uranium::error::Result;
+/// # fn foo() -> Result<()> {
+/// RinthDownloader::<Downloader>::new("modpack_path", "installation path")?;
+/// # Ok(())
 /// # }
+/// ```
 pub struct RinthDownloader<T: FileDownloader> {
     gen_downloader: T,
     modpack: RinthModpack,
@@ -30,13 +36,35 @@ type Links = Vec<String>;
 type Names = Vec<PathBuf>;
 
 impl<T: FileDownloader> RinthDownloader<T> {
-    /// Create a new `RinthDownloader` with the given `modpack_path` and `destination`
+    /// Create a new `RinthDownloader` with the given `modpack_path` and
+    /// `destination`.
+    ///
+    /// # Example
+    /// ```no_run
+    /// 
+    /// use uranium::downloaders::{RinthDownloader, Downloader};
+    /// use uranium::error::Result;
+    ///
+    /// # async fn foo() -> Result<()> {
+    /// //                                  FileDownloader to use (mandatory)
+    /// //                                           vvvvvvvvvv
+    /// let mut rinth_downloader = RinthDownloader::<Downloader>::new(
+    ///     "/my_modpack/path",
+    ///     "/installation/path"
+    /// )?;
+    ///
+    /// rinth_downloader.complete().await?;
+    /// Ok(())
+    /// # }
+    /// ```
     ///
     /// # Errors
     ///
-    /// This function can returns `Err(UraniumError::WrongFileFormat)` if the given
-    /// `modpack_path`is not a valid modpack file.
-    pub fn new<I: AsRef<Path>>(modpack_path: I, destination: I) -> Result<Self, UraniumError> {
+    /// This function can return `Err(UraniumError::WrongFileFormat)` if the
+    /// given `modpack_path` is not a valid modpack file. Also, can fail if the
+    /// mods dir, resourcepacks dir or config dir are missing and can't be
+    /// created.
+    pub fn new<I: AsRef<Path>, J: AsRef<Path>>(modpack_path: I, destination: J) -> Result<Self> {
         let modpack = Self::load_pack(modpack_path)?;
         let (links, names) = Self::get_data(&modpack);
 
@@ -46,14 +74,22 @@ impl<T: FileDownloader> RinthDownloader<T> {
         Self::check_rp_dir(destination)?;
         Self::check_config_dir(destination)?;
 
-        let files = links.iter().zip(names.iter()).map(|(url, name)|
-            DownlodableObject::new(url, name.to_str().unwrap_or_default(), destination, None)
-        ).collect();
+        let files = links
+            .iter()
+            .zip(names.iter())
+            .map(|(url, name)| {
+                DownloadableObject::new(
+                    url,
+                    name.to_str()
+                        .unwrap_or_default(),
+                    destination,
+                    None,
+                )
+            })
+            .collect();
 
         Ok(RinthDownloader {
-            gen_downloader: T::new(
-                files
-            ),
+            gen_downloader: T::new(files),
             modpack,
         })
     }
@@ -67,7 +103,9 @@ impl<T: FileDownloader> RinthDownloader<T> {
     /// Returns `true` if there are no mods to download.
     #[must_use]
     pub fn finished(&self) -> bool {
-        self.gen_downloader.requests_left() == 0
+        self.gen_downloader
+            .requests_left()
+            == 0
     }
 
     /// Returns the number of **CHUNKS** to download.
@@ -85,7 +123,9 @@ impl<T: FileDownloader> RinthDownloader<T> {
     /// Returns how many requests chunks are left.
     #[must_use]
     pub fn requests_left(&self) -> usize {
-        let left = &self.gen_downloader.requests_left();
+        let left = &self
+            .gen_downloader
+            .requests_left();
 
         if left % N_THREADS() == 0 {
             left / N_THREADS()
@@ -97,7 +137,11 @@ impl<T: FileDownloader> RinthDownloader<T> {
     /// Simply returns the modpack name.
     #[must_use]
     pub fn get_modpack_name(&self) -> String {
-        self.modpack.get_name()
+        self.modpack
+            .name
+            .to_str()
+            .unwrap_or_default()
+            .to_string()
     }
 
     fn get_data(rinth_pack: &RinthModpack) -> (Links, Names) {
@@ -105,6 +149,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
             .get_files()
             .iter()
             .map(RinthMdFiles::get_download_link)
+            .map(str::to_owned)
             .collect();
 
         info!("Downloading {} files", file_links.len());
@@ -112,7 +157,8 @@ impl<T: FileDownloader> RinthDownloader<T> {
         let file_names: Vec<PathBuf> = rinth_pack
             .get_files()
             .iter()
-            .map(RinthMdFiles::get_name)
+            .map(RinthMdFiles::get_path)
+            .map(Path::to_owned)
             .collect();
 
         for name in &file_names {
@@ -122,15 +168,22 @@ impl<T: FileDownloader> RinthDownloader<T> {
         (file_links, file_names)
     }
 
-    fn load_pack<I: AsRef<Path>>(path: I) -> Result<RinthModpack, UraniumError> {
-        unzip_temp_pack(path)?;
-        let Some(rinth_pack) = load_rinth_pack(&(TEMP_DIR.to_owned() + RINTH_JSON)) else {
-            return Err(UraniumError::WrongFileFormat);
-        };
+    fn load_pack<I: AsRef<Path>>(path: I) -> Result<RinthModpack> {
+        match unzip_temp_pack(&path) {
+            Err(UraniumError::CantCreateDir("temp_dir")) => {
+                // retry
+                unzip_temp_pack(path)?
+            }
+            Err(e) => Err(e)?,
+            Ok(_) => {}
+        }
 
-        info!("Pack loaded {}", rinth_pack.get_name());
-
-        Ok(rinth_pack)
+        if let Some(rinth_pack) = load_rinth_pack(&(TEMP_DIR.to_owned() + RINTH_JSON)) {
+            info!("Pack loaded {}", rinth_pack.get_name());
+            Ok(rinth_pack)
+        } else {
+            Err(UraniumError::WrongFileFormat)
+        }
     }
 
     /// This method will start the download and make progress until
@@ -138,9 +191,13 @@ impl<T: FileDownloader> RinthDownloader<T> {
     ///
     /// # Errors
     /// This function can return an `Err(UraniumError)` like `progress` can.
-    #[must_use]
-    pub async fn complete(&mut self) -> Result<(), UraniumError> {
-        self.gen_downloader.complete().await
+    pub async fn complete(&mut self) -> Result<()> {
+        let r = self
+            .gen_downloader
+            .complete()
+            .await;
+        remove_temp_pack();
+        r
     }
 
     /// Make progress.
@@ -151,33 +208,52 @@ impl<T: FileDownloader> RinthDownloader<T> {
     /// Else return None.
     ///
     /// # Errors
-    /// In case the downloader fails to download or write the chunk this method will return an
-    /// error with the corresponding variant.
-    #[must_use]
-    pub async fn progress(&mut self) -> Result<DownloadState, UraniumError> {
-        self.gen_downloader.progress().await
+    /// In case the downloader fails to download or write the chunk this method
+    /// will return an error with the corresponding variant.
+    pub async fn progress(&mut self) -> Result<DownloadState> {
+        let r = self
+            .gen_downloader
+            .progress()
+            .await;
+        if let Ok(DownloadState::Completed) = r {
+            remove_temp_pack();
+        }
+        r
     }
 
-    fn check_mods_dir(destination: &Path) -> Result<(), UraniumError> {
-        if !destination.join("mods").exists() {
-            std::fs::create_dir(destination.join("mods"))
-                .map_err(|_| UraniumError::CantCreateDir)?;
+    pub fn get_modpack(&self) -> &RinthModpack {
+        &self.modpack
+    }
+
+    fn check_mods_dir(destination: &Path) -> Result<()> {
+        if !destination
+            .join("mods")
+            .exists()
+        {
+            info!("Creating mods dir");
+            std::fs::create_dir(destination.join("mods"))?;
         }
         Ok(())
     }
 
-    fn check_rp_dir(destination: &Path) -> Result<(), UraniumError> {
-        if !destination.join("resourcepacks").exists() {
-            std::fs::create_dir(destination.join("resourcepacks"))
-                .map_err(|_| UraniumError::CantCreateDir)?;
+    fn check_rp_dir(destination: &Path) -> Result<()> {
+        if !destination
+            .join("resourcepacks")
+            .exists()
+        {
+            info!("Creating resourcepacks dir");
+            std::fs::create_dir(destination.join("resourcepacks"))?;
         }
         Ok(())
     }
 
-    fn check_config_dir(destination: &Path) -> Result<(), UraniumError> {
-        if !destination.join("config").exists() {
-            std::fs::create_dir(destination.join("config"))
-                .map_err(|_| UraniumError::CantCreateDir)?;
+    fn check_config_dir(destination: &Path) -> Result<()> {
+        if !destination
+            .join("config")
+            .exists()
+        {
+            info!("Creating config dir");
+            std::fs::create_dir(destination.join("config"))?;
         }
         Ok(())
     }

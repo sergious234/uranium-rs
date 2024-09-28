@@ -1,26 +1,27 @@
-use super::{gen_downloader::DownloadState, DownlodableObject};
-use crate::{
-    code_functions::N_THREADS,
-    error::UraniumError,
-    variables::constants::{CURSE_JSON, TEMP_DIR},
-    zipper::pack_unzipper::unzip_temp_pack,
-    FileDownloader,
-};
+use std::path::Path;
+
 use futures::future::join_all;
-use mine_data_strutcs::{
+use mine_data_structs::{
     curse::{curse_modpacks::*, curse_mods::*},
     url_maker::maker::Curse,
 };
 use reqwest::Response;
-use std::path::Path;
 
+use super::{gen_downloader::DownloadState, DownloadableObject};
+use crate::{
+    code_functions::N_THREADS,
+    error::{Result, UraniumError},
+    variables::constants::{CURSE_JSON, TEMP_DIR},
+    zipper::pack_unzipper::unzip_temp_pack,
+    FileDownloader,
+};
 
-/// This struct is responsable of downloading Curse modpacks.
+/// This struct is responsible for downloading Curse modpacks.
 ///
 /// Like RinthDownloader struct it takes a generic parameter which will be the
 /// downloader used:
 ///
-/// ```rust
+/// ```no_run
 /// # use uranium::downloaders::Downloader;
 /// # use uranium::downloaders::CurseDownloader;
 /// # async fn foo() {
@@ -31,12 +32,11 @@ pub struct CurseDownloader<T: FileDownloader> {
     modpack: CursePack,
 }
 
-#[allow(unused)]
 impl<T: FileDownloader> CurseDownloader<T> {
-    pub async fn new<I: AsRef<Path>>(
+    pub async fn new<I: AsRef<Path>, J: AsRef<Path>>(
         modpack_path: I,
-        destination: I,
-    ) -> Result<Self, UraniumError> {
+        destination: J,
+    ) -> Result<Self> {
         let destination = destination.as_ref();
         Self::check_mods_dir(destination)?;
         Self::check_rp_dir(destination)?;
@@ -63,29 +63,31 @@ impl<T: FileDownloader> CurseDownloader<T> {
             .find(|(v, _)| v == "CURSE_API_KEY")
             .unwrap_or_default();
 
-        header_map
-            .insert("x-api-key", curse_api_key.parse().unwrap());
-        header_map
-            .insert("Content-Type", "application/json".parse().unwrap());
-        header_map
-            .insert("Accept", "application/json".parse().unwrap());
+        /* TODO!: This should be other Error kind since the problem isn't coming from
+           reqwest but from http InvalidHeaderValue error kind
+        */
+        header_map.insert("x-api-key", curse_api_key.parse()?);
+        header_map.insert("Content-Type", "application/json".parse()?);
+        header_map.insert("Accept", "application/json".parse()?);
 
         let client = reqwest::ClientBuilder::new()
-        .default_headers(header_map)
-        .build()
-        .expect("Curse client could not be created!");
-
-
+            .default_headers(header_map)
+            .build()?;
 
         let responses: Vec<Response> = Self::get_mod_responses(&client, &files_ids).await;
         let mut files = Vec::with_capacity(responses.len());
         let mods_path = destination.join("mods/");
 
         for response in responses {
-            let cf = response.json::<CurseResponse<CurseFile>>().await.unwrap();
-            files.push(DownlodableObject::new(
+            let cf = response
+                .json::<CurseResponse<CurseFile>>()
+                .await?;
+            files.push(DownloadableObject::new(
                 &cf.data.get_download_url(),
-                cf.data.get_file_name().to_str().unwrap_or_default(),
+                cf.data
+                    .get_file_name()
+                    .to_str()
+                    .unwrap_or_default(),
                 &mods_path,
                 None,
             ));
@@ -97,16 +99,20 @@ impl<T: FileDownloader> CurseDownloader<T> {
         })
     }
 
-    /// This function will call `FileDownloader::progress()` and returns it's 
+    /// This function will call `FileDownloader::progress()` and returns it's
     /// output.
-    pub async fn progress(&mut self) -> Result<DownloadState, UraniumError> {
-        self.gen_downloader.progress().await
+    pub async fn progress(&mut self) -> Result<DownloadState> {
+        self.gen_downloader
+            .progress()
+            .await
     }
 
-    /// This function will call `FileDownloader::complete' and returns it's 
+    /// This function will call `FileDownloader::complete' and returns it's
     /// output.
-    pub async fn complete(&mut self) -> Result<(), UraniumError> {
-        self.gen_downloader.complete().await
+    pub async fn complete(&mut self) -> Result<()> {
+        self.gen_downloader
+            .complete()
+            .await
     }
 
     /// Returns the number of mods to download.
@@ -118,7 +124,9 @@ impl<T: FileDownloader> CurseDownloader<T> {
     /// Returns `true` if there are no mods to download.
     #[must_use]
     pub fn finished(&self) -> bool {
-        self.gen_downloader.requests_left() == 0
+        self.gen_downloader
+            .requests_left()
+            == 0
     }
 
     /// Returns the number of **CHUNKS** to download.
@@ -136,7 +144,9 @@ impl<T: FileDownloader> CurseDownloader<T> {
     /// Returns how many requests chunks are left.
     #[must_use]
     pub fn requests_left(&self) -> usize {
-        let left = &self.gen_downloader.requests_left();
+        let left = &self
+            .gen_downloader
+            .requests_left();
 
         if left % N_THREADS() == 0 {
             left / N_THREADS()
@@ -150,12 +160,19 @@ impl<T: FileDownloader> CurseDownloader<T> {
     pub fn get_modpack_name(&self) -> &str {
         &self.modpack.name
     }
+
+    /// Returns a reference to the modpack
+    #[must_use]
+    pub fn get_curse_pack(&self) -> &CursePack {
+        &self.modpack
+    }
 }
 
 // TODO: This is repeated in RinthDownloader, maybe put this functions in
 // code_functions.rs ?
 //
-// Also how requests are done should look like Downloader where tasks are spawned. 
+// Also how requests are done should look like Downloader where tasks are
+// spawned.
 impl<T: FileDownloader> CurseDownloader<T> {
     async fn get_mod_responses(curse_req: &reqwest::Client, files_ids: &[String]) -> Vec<Response> {
         let mut responses: Vec<Response> = Vec::with_capacity(files_ids.len());
@@ -164,10 +181,14 @@ impl<T: FileDownloader> CurseDownloader<T> {
         for chunk in files_ids.chunks(threads) {
             let mut requests = Vec::with_capacity(chunk.len());
             for url in chunk {
-                let tarea = async move {curse_req.get(url).send()}.await;
-                requests.push(tarea);
+                let task = async move { curse_req.get(url).send() }.await;
+                requests.push(task);
             }
-            let res: Vec<Response> = join_all(requests).await.into_iter().flatten().collect();
+            let res: Vec<Response> = join_all(requests)
+                .await
+                .into_iter()
+                .flatten()
+                .collect();
             responses.extend(res);
         }
 
@@ -177,26 +198,35 @@ impl<T: FileDownloader> CurseDownloader<T> {
     // Duplicate code ? Maybe
     // DRY ? Nope
     // Wet ? ;)
-    fn check_mods_dir(destination: &Path) -> Result<(), UraniumError> {
-        if !destination.join("mods").exists() {
+    fn check_mods_dir(destination: &Path) -> Result<()> {
+        if !destination
+            .join("mods")
+            .exists()
+        {
             std::fs::create_dir(destination.join("mods"))
-                .map_err(|_| UraniumError::CantCreateDir)?;
+                .map_err(|_| UraniumError::CantCreateDir("mods"))?;
         }
         Ok(())
     }
 
-    fn check_rp_dir(destination: &Path) -> Result<(), UraniumError> {
-        if !destination.join("resourcepacks").exists() {
+    fn check_rp_dir(destination: &Path) -> Result<()> {
+        if !destination
+            .join("resourcepacks")
+            .exists()
+        {
             std::fs::create_dir(destination.join("resourcepacks"))
-                .map_err(|_| UraniumError::CantCreateDir)?;
+                .map_err(|_| UraniumError::CantCreateDir("resourcepacks"))?;
         }
         Ok(())
     }
 
-    fn check_config_dir(destination: &Path) -> Result<(), UraniumError> {
-        if !destination.join("config").exists() {
+    fn check_config_dir(destination: &Path) -> Result<()> {
+        if !destination
+            .join("config")
+            .exists()
+        {
             std::fs::create_dir(destination.join("config"))
-                .map_err(|_| UraniumError::CantCreateDir)?;
+                .map_err(|_| UraniumError::CantCreateDir("config"))?;
         }
         Ok(())
     }
