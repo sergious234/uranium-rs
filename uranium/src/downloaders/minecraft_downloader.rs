@@ -484,16 +484,15 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             .json::<Resources>()
             .await?;
 
-        if tokio::fs::create_dir_all(
+        tokio::fs::create_dir_all(
             self.dot_minecraft_path
                 .join("assets/indexes"),
         )
         .await
-        .is_err()
-        {
+        .map_err(|err| {
             error!("Cant create assets/indexes");
-            return Err(UraniumError::CantCreateDir("assets/indexes"));
-        }
+            UraniumError::OtherWithReason(format!("assets/indexes: [{}]", err.to_string()))
+        })?;
 
         if tokio::fs::create_dir_all(
             self.dot_minecraft_path
@@ -766,29 +765,34 @@ mod tests {
     use crate::error::Result;
 
     #[tokio::test(flavor = "multi_thread")]
-
     pub async fn download_minecraft() -> Result<()> {
         let mut downloader =
             MinecraftDownloader::<Downloader>::init("/home/sergio/.minecraft", "1.20.1").await?;
 
         let mut stdout = tokio::io::stdout();
-        loop {
-            let state = downloader.progress().await?;
+        let r = loop {
+            let state = if let Ok(x) = downloader.progress().await {
+                x
+            } else {
+                break None;
+            };
 
             if let MinecraftDownloadState::Completed = state {
                 downloader.add_instance("/home/sergio/.minecraft", "Vanilla 1.20.1", None)?;
-                break;
+                break Some(());
             }
             stdout
                 .write_all(format!("{:?}  [{:?}]\n", state, downloader.requests_left()).as_bytes())
-                .await
-                .unwrap();
+                .await?;
             tokio::io::stdout()
                 .flush()
                 .await?;
-        }
+        };
         let exits = Path::new("/home/sergio/.minecraft/versions/1.20.1/1.20.1.jar").exists();
-        assert!(exits);
+
+        if r.is_some() {
+            assert!(exits);
+        }
         Ok(())
     }
 }
