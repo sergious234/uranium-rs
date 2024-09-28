@@ -19,6 +19,9 @@ jobs:
 
     - name: Install Rust nightly
       run: rustup override set nightly
+      
+    - name: Install rustfmt for nightly
+      run: rustup component add rustfmt --toolchain nightly
 
     - name: Build
       run: cargo build --verbose
