@@ -26,7 +26,11 @@ impl UraniumFile {
     }
 
     pub fn get_path(&self) -> String {
-        self.path.as_os_str().to_str().unwrap_or_default().to_string()
+        self.path
+            .as_os_str()
+            .to_str()
+            .unwrap_or_default()
+            .to_string()
     }
 
     pub fn get_name(&self) -> String {
@@ -34,7 +38,11 @@ impl UraniumFile {
     }
 
     pub fn get_absolute_path(&self) -> String {
-        self.path.join(&self.name).to_str().unwrap_or_default().to_string()
+        self.path
+            .join(&self.name)
+            .to_str()
+            .unwrap_or_default()
+            .to_string()
     }
 
     pub fn set_type(&mut self, new_file_type: FileType) {
