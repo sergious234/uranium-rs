@@ -1,7 +1,8 @@
 [package]
 name = "uranium"
-version = "0.1.0"
 edition = "2021"
+version = "0.1.0"
+authors = ["sergious234 <sergious23@gmail.com>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -9,7 +10,8 @@ edition = "2021"
 serde.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
-mine_data_strutcs = {path = "../mine_data_strutcs"}
+mine_data_structs = {path = "../mine_data_structs"}
+derive_more = {version = "1.0.0", features = ["display"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 futures = "0.3.3"
 sha1 = "0.10.5"
@@ -23,3 +25,12 @@ thiserror = "1.0.40"
 simplelog = "0.12.1"
 log = { version = "0.4.19", features = ["std"] }
 rayon = "1.10.0"
+dirs = "5.0.1"
+
+[[test]]
+name = "maker"
+path = "../tests/maker.rs"
+
+[[test]]
+name = "rinth_downloader"
+path = "../tests/rinth_downloader.rs"
