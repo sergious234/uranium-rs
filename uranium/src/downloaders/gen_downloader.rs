@@ -1,26 +1,32 @@
-use crate::{code_functions::N_THREADS, error::UraniumError};
-use futures::{future::join_all, StreamExt};
-use log::{error, info, warn};
-use reqwest::Response;
-use sha1::Digest;
+use std::sync::Arc;
 use std::{
     collections::VecDeque,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::{Path, PathBuf},
 };
+
+use futures::{future::join_all, StreamExt};
+use log::{error, info, warn};
+use reqwest::Response;
+use sha1::Digest;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::{io::AsyncWriteExt, task::JoinHandle};
 
-/// Download files asynchronously.  
+use crate::error::Result;
+use crate::{code_functions::N_THREADS, error::UraniumError};
+
+/// Download files asynchronously.
 ///
 /// This trait allows the user to make their own `FileDownloader` and use it
-/// with the differents downloader such us:
+/// with the different downloader such us:
 /// - `MinecraftDownloader`
 /// - `RinthDownloader`
 /// - `CurseDownloader`
-///
-///
 #[allow(async_fn_in_trait)]
 pub trait FileDownloader {
+    /// Builds a new struct from a vec of `DownlodableObject`s.
+    fn new(files: Vec<DownloadableObject>) -> Self;
+
     /// This method is responsible for managing the progress of downloads and
     /// tasks in the Uranium library.
     ///
@@ -46,9 +52,9 @@ pub trait FileDownloader {
     /// This method returns a `Result<DownloadState, UraniumError>`, where
     /// `DownloadState` represents the current state of the download process,
     /// and `UraniumError` is the error type that occurs in case of failure.
-    async fn progress(&mut self) -> Result<DownloadState, UraniumError>;
+    async fn progress(&mut self) -> Result<DownloadState>;
 
-    /// This method calls `Self::progress()` repeatdly until it returns
+    /// This method calls `Self::progress()` repeatedly until it returns
     /// `DownloadState::Completed`.
     ///
     /// # Errors
@@ -61,7 +67,7 @@ pub trait FileDownloader {
     /// # Returns
     ///
     /// This method returns a `Result<(), UraniumError>`.
-    async fn complete(&mut self) -> Result<(), UraniumError> {
+    async fn complete(&mut self) -> Result<()> {
         loop {
             match self.progress().await {
                 Err(e) => return Err(e),
@@ -70,9 +76,6 @@ pub trait FileDownloader {
             }
         }
     }
-
-    /// Builds a new struct from a vec of `DownlodableObject`s.
-    fn new(files: Vec<DownlodableObject>) -> Self;
 
     /// Return how many requests are left.
     ///
@@ -92,8 +95,8 @@ pub enum DownloadState {
     Completed,
 }
 
-// TODO: Add Sha5 
-/// Indicates which hash the file uses for verification. 
+// TODO! : Add Sha5
+/// Indicates which hash the file uses for verification.
 #[derive(Debug, Clone)]
 pub enum HashType {
     Sha1(String),
@@ -108,17 +111,17 @@ pub enum HashType {
 ///
 /// The join between path and name MUST result in the final path e.g:
 ///
-/// `name`: MyMinecraftMod.jar
+/// `name`: MyMinecraftMod.jar <br>
 /// `path`: /home/sergio/.minecraft/Fabric1.18/mods/
 #[derive(Debug, Clone)]
-pub struct DownlodableObject {
+pub struct DownloadableObject {
     pub url: String,
     pub name: String,
     pub path: PathBuf,
     pub hash: Option<HashType>,
 }
 
-impl DownlodableObject {
+impl DownloadableObject {
     pub fn new(url: &str, name: &str, path: &Path, hash: Option<HashType>) -> Self {
         Self {
             url: url.to_owned(),
@@ -135,15 +138,15 @@ impl DownlodableObject {
 ///
 /// It uses `reqwest::Client` for the HTTP requests.
 pub struct Downloader {
-    files: Vec<DownlodableObject>,
+    files: Vec<DownloadableObject>,
     requester: reqwest::Client,
-    max_threads: usize,
     start: usize,
-    tasks: VecDeque<JoinHandle<Result<(), UraniumError>>>,
+    s: Arc<Semaphore>,
+    tasks: VecDeque<JoinHandle<Result<()>>>,
 }
 
 impl FileDownloader for Downloader {
-    fn new(files: Vec<DownlodableObject>) -> Self {
+    fn new(files: Vec<DownloadableObject>) -> Self {
         let n_files = files.len();
         info!("{n_files} files to download");
 
@@ -153,63 +156,67 @@ impl FileDownloader for Downloader {
                 SocketAddr::new(IpAddr::V4(Ipv4Addr::new(13, 107, 246, 43)), 80),
             )
             .build()
-            .unwrap();
+            .expect("Error while creating the Downloader client, please report this error.");
 
         Downloader {
             files,
             requester: client,
-            max_threads: 32,
             start: 0,
+            s: Arc::new(Semaphore::new(N_THREADS())),
             tasks: VecDeque::with_capacity(n_files),
         }
     }
 
-    /// Returns how many requests are left.
-    fn requests_left(&self) -> usize {
-        self.files.len() - self.start
-    }
-
-    fn len(&self) -> usize {
-        self.files.len()
-    }
-
-    async fn progress(&mut self) -> Result<DownloadState, UraniumError> {
-        while self.files.len() != self.start && self.tasks.len() < self.max_threads {
+    async fn progress(&mut self) -> Result<DownloadState> {
+        let mut x = N_THREADS();
+        while x > 0 && self.start != self.files.len() && self.s.available_permits() > 0 {
             self.make_requests().await?;
+            x -= 1;
         }
 
         if !self.tasks.is_empty() {
             let mut guard = true;
+            let mut i = 0;
             while guard {
                 guard = false;
-                for i in 0..self.tasks.len() {
-                    // SAFETY: There is no way this unwraps fails since we are
-                    // iterating over the len of the queue and no other thread
-                    // is modifing the queue.
-                    if self.tasks.get(i).unwrap().is_finished() {
-                        let task = self.tasks.remove(i).unwrap();
-                        guard = true;
-                        match task.await.unwrap() {
-                            Err(UraniumError::FilesDontMatch(objects)) => {
-                                self.files.extend(objects);
-                            }
-                            Err(e) => Err(e)?,
-                            Ok(_) => {}
+                // SAFETY: There is no way this unwraps fails since we are
+                // iterating over the len of the queue and no other thread
+                // is modifying the queue, also the queue is not empty.
+                if self
+                    .tasks
+                    .get(i)
+                    .unwrap()
+                    .is_finished()
+                {
+                    let task = self.tasks.remove(i).unwrap();
+                    guard = true;
+                    match task.await? {
+                        Err(UraniumError::FilesDontMatch(objects)) => {
+                            self.files.extend(objects);
                         }
-                        break;
+                        Err(e) => Err(e)?,
+                        Ok(_) => {}
                     }
+                    break;
                 }
+
+                i = (i + 1) % self.tasks.len();
             }
 
             if guard {
                 return Ok(DownloadState::Downloading);
             }
 
-            // In case no task is finished yet we wait for the first one
+            // In case no task is finished yet, we wait for the first one
             if !self.tasks.is_empty() {
                 warn!("Waiting the first one...");
                 // UNWRAP SAFETY: Can't be empty since we are checking.
-                match self.tasks.pop_front().unwrap().await.unwrap() {
+                match self
+                    .tasks
+                    .pop_front()
+                    .unwrap()
+                    .await?
+                {
                     Err(UraniumError::FilesDontMatch(objects)) => self.files.extend(objects),
                     Err(e) => Err(e)?,
                     _ => {}
@@ -219,15 +226,27 @@ impl FileDownloader for Downloader {
         }
         Ok(DownloadState::Completed)
     }
+
+    /// Returns how many requests are left.
+    #[must_use]
+    fn requests_left(&self) -> usize {
+        self.files.len() - self.start + self.tasks.len()
+    }
+
+    #[must_use]
+    fn len(&self) -> usize {
+        self.files.len()
+    }
 }
 
 impl Downloader {
-    async fn make_requests(&mut self) -> Result<DownloadState, UraniumError> {
-        let mut chunk_size = 16; //self.max_threads;
 
-        if self.max_threads < N_THREADS() * 2 {
-            self.max_threads += 4;
-        }
+    pub fn mi_static() -> i32 {
+        return -33;
+    }
+
+    async fn make_requests(&mut self) -> Result<DownloadState> {
+        let mut chunk_size = 32;
 
         if self.start + chunk_size > self.files.len() {
             chunk_size = self.files.len() - self.start;
@@ -240,22 +259,35 @@ impl Downloader {
             let rq = self.requester.clone();
             let file_url = file.url.to_owned();
 
-            requests_vec.push(tokio::task::spawn(
-                async move { rq.get(&file_url).send().await },
-            ));
+            requests_vec.push(async move { rq.get(&file_url).send().await });
         }
 
-        let responses: Vec<Result<Response, reqwest::Error>> =
-            join_all(requests_vec).await.into_iter().flatten().collect();
+        let responses: Vec<std::result::Result<Response, reqwest::Error>> = join_all(requests_vec)
+            .await
+            .into_iter()
+            .collect();
 
-        if let Some(i) = responses.iter().position(|e| e.is_err()) {
+        if let Some(i) = responses
+            .iter()
+            .position(|e| e.is_err())
+        {
             error!("{:?}", responses[i]);
-            return Err(UraniumError::RequestError);
+            return Err(UraniumError::Other);
         }
-        let responses = responses.into_iter().flatten().collect();
+
+        let responses = responses
+            .into_iter()
+            .flatten()
+            .collect();
 
         let files = self.files[self.start..self.start + chunk_size].to_vec();
-        let task = tokio::spawn(async move { download_and_write(files, responses).await });
+        let sem = self
+            .s
+            .clone()
+            .acquire_owned()
+            .await
+            .unwrap();
+        let task = tokio::spawn(async move { download_and_write(files, responses, sem).await });
 
         info!("Pushing new task {}", self.start);
         self.tasks.push_back(task);
@@ -265,23 +297,54 @@ impl Downloader {
 }
 
 async fn download_and_write(
-    files: Vec<DownlodableObject>,
+    files: Vec<DownloadableObject>,
     responses: Vec<Response>,
-) -> Result<(), UraniumError> {
-    assert_eq!(responses.len(), files.len());
+    _sem: OwnedSemaphorePermit,
+) -> Result<()> {
+    debug_assert_eq!(responses.len(), files.len());
+
+    if responses.len() != files.len() {
+        return Err(UraniumError::OtherWithReason(
+            "Responses len doesn't match files len, this shouldn't happen...".into(),
+        ));
+    }
 
     info!("Downloading data");
     let mut bytes_from_res = Vec::with_capacity(responses.len());
 
-    for (response, obj) in responses.into_iter().zip(files.into_iter()) {
-        bytes_from_res.push(tokio::spawn(async move {
-            let file_path = obj.path.join(&obj.name);
+    for (response, obj) in responses
+        .into_iter()
+        .zip(files.into_iter())
+    {
+        let file_path = obj.path.join(&obj.name);
+
+        // If the file already exits check if its hash match, if so go for
+        // the next file.
+        if file_path.exists() {
+            let content = tokio::fs::read(&file_path).await?;
+            let good_hash = match obj.hash {
+                Some(HashType::Sha1(ref expected)) => {
+                    let mut hasher = sha1::Sha1::new();
+                    hasher.update(&content);
+                    let actual = hex::encode(hasher.finalize());
+                    &actual == expected
+                }
+                None => false,
+            };
+
+            if good_hash {
+                continue;
+            }
+        }
+
+        bytes_from_res.push(async move {
             let content_length = response
                 .content_length()
                 .map(|e| e as usize)
                 .unwrap_or_default();
 
             let mut bytes_stream = response.bytes_stream();
+
             let mut file = tokio::fs::OpenOptions::new()
                 .create(true)
                 .write(true)
@@ -291,8 +354,9 @@ async fn download_and_write(
 
             let mut total = 0;
             let mut buffer = Vec::with_capacity(content_length);
+
             while let Some(item) = bytes_stream.next().await {
-                let chunk = item.unwrap();
+                let chunk = item?;
                 match file.write(&chunk).await {
                     Err(e) => {
                         error!("Can not write in {:?}: {}", file_path, e);
@@ -304,12 +368,17 @@ async fn download_and_write(
             }
 
             let good_hash = match obj.hash {
-                Some(HashType::Sha1(ref expected)) => {
+                Some(HashType::Sha1(ref expected)) if total == content_length => {
                     let mut hasher = sha1::Sha1::new();
                     hasher.update(&buffer);
                     let actual = hex::encode(hasher.finalize());
                     &actual == expected
                 }
+
+                // If a hash is available but the download size doesn't match
+                // the content length then something is wrong.
+                Some(_) => false,
+
                 None => true,
             };
 
@@ -318,19 +387,18 @@ async fn download_and_write(
             } else {
                 Err(UraniumError::FileNotMatch(obj))
             }
-        }));
+        });
     }
 
     let errors: Vec<_> = join_all(bytes_from_res)
         .await
         .into_iter()
-        .flatten()
         .filter_map(|e| e.err())
         .collect();
 
     if !errors.is_empty() {
         warn!("Some files are broken");
-        let objects: Vec<DownlodableObject> = errors
+        let objects: Vec<DownloadableObject> = errors
             .into_iter()
             .filter_map(|e| match e {
                 UraniumError::FileNotMatch(obj) => Some(obj),
@@ -340,6 +408,6 @@ async fn download_and_write(
         return Err(UraniumError::FilesDontMatch(objects));
     }
 
-    info!("Chunk wrote succesfully!");
+    info!("Chunk wrote successfully!");
     Ok(())
 }
