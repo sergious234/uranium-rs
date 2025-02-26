@@ -168,7 +168,7 @@ pub type Libraries = Vec<Library>;
 
 pub trait Lib {
     fn get_paths(&self) -> Vec<PathBuf>;
-    fn get_sha1<'a>(&'a self) -> Vec<&'a str>;
+    fn get_sha1(&self) -> Vec<&str>;
     fn get_urls(&self) -> Vec<&str>;
 }
 
