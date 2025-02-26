@@ -51,7 +51,7 @@ pub struct Resources {
 */
 
 /// # Example:
-/// ```json 
+/// ```json
 /// {
 ///  "id": "24w39a",
 ///  "type": "snapshot",
@@ -124,13 +124,12 @@ impl Library {
     pub fn get_os(&self) -> Option<Os> {
         self.rules
             .as_ref()
-            .map(|r| {
+            .and_then(|r| {
                 r.iter()
                     .find(|x| x.os.is_some())
                     .unwrap()
                     .os
             })
-            .flatten()
     }
 
     pub fn get_url(&self) -> &str {
@@ -169,6 +168,7 @@ pub type Libraries = Vec<Library>;
 
 pub trait Lib {
     fn get_paths(&self) -> Vec<PathBuf>;
+    fn get_sha1<'a>(&'a self) -> Vec<&'a str>;
     fn get_urls(&self) -> Vec<&str>;
 }
 
@@ -182,6 +182,19 @@ impl Lib for Libraries {
                     .artifact
                     .path
                     .clone()
+            })
+            .collect()
+    }
+
+    fn get_sha1(&self) -> Vec<&str> {
+        self.iter()
+            .map(|l| {
+                l.downloads
+                    .as_ref()
+                    .unwrap()
+                    .artifact
+                    .sha1
+                    .as_str()
             })
             .collect()
     }
@@ -414,10 +427,14 @@ impl ProfilesJson {
             .write(true)
             .create(true)
             .truncate(true)
-            .open(get_minecraft_path().ok_or(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                ".minecraft not found",
-            ))?)?;
+            .open(
+                get_minecraft_path()
+                    .ok_or(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        ".minecraft not found",
+                    ))?
+                    .join("launcher_profiles.json"),
+            )?;
 
         file.write_all(serde_json::to_string_pretty(&self)?.as_bytes())?;
         Ok(())
@@ -540,4 +557,59 @@ pub fn get_minecraft_path() -> Option<PathBuf> {
     } else {
         None
     }
+}
+
+/*
+ *
+ *
+ *
+ *  MINECRAFT JAVA RUNTIMES
+ *
+ *
+ *
+ */
+
+pub const RUNTIMES_URL: &str = "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
+
+pub type RuntimeName = String;
+pub type OsName = String;
+pub type Runtime = HashMap<RuntimeName, Vec<RuntimeData>>;
+pub type FileRelPath = PathBuf;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Runtimes {
+    pub linux: Runtime,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RuntimeData {
+    manifest: Manifest,
+}
+
+impl RuntimeData {
+    pub fn get_url(&self) -> &str {
+        &self.manifest.url
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Manifest {
+    sha1: String,
+    size: usize,
+    pub url: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RuntimeFiles {
+    pub files: HashMap<FileRelPath, RuntimeFile>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RuntimeFile {
+    #[serde(default)]
+    pub downloads: HashMap<String, Manifest>,
+    #[serde(default)]
+    pub executable: bool,
+    #[serde(rename = "type")]
+    pub file_type: String,
 }
