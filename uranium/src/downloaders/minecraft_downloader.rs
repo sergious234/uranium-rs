@@ -56,7 +56,7 @@ pub async fn list_instances() -> Result<MinecraftVersions> {
 /// Function that returns the latest Minecraft snapshot version as a
 /// `Result<String, UraniumError>`.
 ///
-/// Returns a `uranium::error::Result<_, _>` where the `Ok()` value is a
+/// Returns a `uranium_rs::error::Result<_, _>` where the `Ok()` value is a
 /// `String` representing the latest snapshot version, and the `Err()` value is
 /// a `UraniumError`.
 ///
@@ -79,7 +79,7 @@ pub async fn get_last_snapshot() -> Result<String> {
 /// Function that returns the latest Minecraft release version as a
 /// `Result<String, UraniumError>`.
 ///
-/// Returns a `uranium::error::Result<_, _>` where the `Ok()` value is a
+/// Returns a `uranium_rs::error::Result<_, _>` where the `Ok()` value is a
 /// `String` representing the latest release version, and the `Err()` value is a
 /// `UraniumError`.
 ///
@@ -122,8 +122,8 @@ pub enum MinecraftDownloadState {
 /// # Example:
 ///
 /// ```no_run
-/// use uranium::downloaders::{FileDownloader, MinecraftDownloader, MinecraftDownloadState};
-/// use uranium::error::Result;
+/// use uranium_rs::downloaders::{FileDownloader, MinecraftDownloader, MinecraftDownloadState};
+/// use uranium_rs::error::Result;
 ///
 /// async fn foo<T: FileDownloader + Send + Sync>() -> Result<()> {
 ///     // T: FileDownloader + Send + Sync
@@ -176,9 +176,9 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     /// # Examples
     ///
     /// ```
-    /// use uranium::downloaders::MinecraftDownloader;
-    /// use uranium::downloaders::FileDownloader;
-    /// use uranium::error::Result;
+    /// use uranium_rs::downloaders::MinecraftDownloader;
+    /// use uranium_rs::downloaders::FileDownloader;
+    /// use uranium_rs::error::Result;
     ///
     /// async fn foo<T: FileDownloader + Send + Sync>() -> Result<()>{
     ///

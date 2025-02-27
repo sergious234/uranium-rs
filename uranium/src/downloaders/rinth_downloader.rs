@@ -19,9 +19,9 @@ use crate::{
 /// downloader to use:
 ///
 /// ```rust no_run
-/// # use uranium::downloaders::Downloader;
-/// # use uranium::downloaders::RinthDownloader;
-/// # use uranium::error::Result;
+/// # use uranium_rs::downloaders::Downloader;
+/// # use uranium_rs::downloaders::RinthDownloader;
+/// # use uranium_rs::error::Result;
 /// # fn foo() -> Result<()> {
 /// RinthDownloader::<Downloader>::new("modpack_path", "installation path")?;
 /// # Ok(())
@@ -42,8 +42,8 @@ impl<T: FileDownloader> RinthDownloader<T> {
     /// # Example
     /// ```no_run
     /// 
-    /// use uranium::downloaders::{RinthDownloader, Downloader};
-    /// use uranium::error::Result;
+    /// use uranium_rs::downloaders::{RinthDownloader, Downloader};
+    /// use uranium_rs::error::Result;
     ///
     /// # async fn foo() -> Result<()> {
     /// //                                  FileDownloader to use (mandatory)

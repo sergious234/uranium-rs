@@ -22,8 +22,8 @@ use crate::{
 /// downloader used:
 ///
 /// ```no_run
-/// # use uranium::downloaders::Downloader;
-/// # use uranium::downloaders::CurseDownloader;
+/// # use uranium_rs::downloaders::Downloader;
+/// # use uranium_rs::downloaders::CurseDownloader;
 /// # async fn foo() {
 /// CurseDownloader::<Downloader>::new("modpack_path", "installation_path").await;
 /// # }

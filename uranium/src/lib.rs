@@ -20,7 +20,7 @@
 //!
 //! ``` rust no_run
 //! # async fn x() {
-//! use uranium::downloaders::{Downloader, RinthDownloader};
+//! use uranium_rs::downloaders::{Downloader, RinthDownloader};
 //!
 //! let mut rinth = RinthDownloader::<Downloader>::new("path", "destination").unwrap();
 //!

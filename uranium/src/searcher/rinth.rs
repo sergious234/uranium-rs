@@ -98,7 +98,7 @@ impl<T> SearchBuilder<T> {
     /// # Example
     ///
     /// ```rust no_run
-    /// use uranium::searcher::rinth::{SearchType, SearchBuilder};
+    /// use uranium_rs::searcher::rinth::{SearchType, SearchBuilder};
     /// let builder = SearchBuilder::new()
     ///     .search_type(SearchType::ProjectVersion {id: "example_id".to_owned()})
     ///     .game_versions(vec!["1.16.5".to_string(), "1.17.1".to_string()])
@@ -151,7 +151,7 @@ impl<T> SearchBuilder<T> {
     /// # Example
     ///
     /// ```rust no_run
-    /// use uranium::searcher::rinth::{SearchType, SearchBuilder};
+    /// use uranium_rs::searcher::rinth::{SearchType, SearchBuilder};
     /// let builder = SearchBuilder::new()
     ///     .search_type(SearchType::ProjectVersion {id: "example_id".to_string()})
     ///     .add_game_version("1.16.5")
@@ -212,7 +212,7 @@ impl SearchBuilder<SearchType> {
     /// # Examples
     ///
     /// ```rust no_run
-    /// # use uranium::searcher::rinth::{SearchBuilder, SearchType};
+    /// # use uranium_rs::searcher::rinth::{SearchBuilder, SearchType};
     /// let search_builder: String = SearchBuilder::new()
     ///     .limit(10)
     ///     .offset(5)

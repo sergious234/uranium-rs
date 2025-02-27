@@ -86,8 +86,8 @@ impl ModpackMaker {
     /// # Example
     ///
     /// ```no_run
-    /// use uranium::modpack_maker::ModpackMaker;
-    /// use uranium::error::UraniumError;
+    /// use uranium_rs::modpack_maker::ModpackMaker;
+    /// use uranium_rs::error::UraniumError;
     ///
     /// let mut mod_maker = ModpackMaker::new("path/to/your/modpack", "my_modpack");
     ///
@@ -121,8 +121,8 @@ impl ModpackMaker {
     ///
     /// ```no_run
     /// # async {
-    ///     use uranium::modpack_maker::ModpackMaker;
-    ///     use uranium::error::UraniumError;
+    ///     use uranium_rs::modpack_maker::ModpackMaker;
+    ///     use uranium_rs::error::UraniumError;
     ///
     ///     let mut mod_maker = ModpackMaker::new("your/modpack/path", "my_modpack");
     ///
