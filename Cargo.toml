@@ -4,7 +4,7 @@ reqwest = { version = "0.12.5", features = ["json", "stream"] }
 tokio = { version = "1.39.1", features = ["full"] }
 
 [workspace]
-resolver = "2"
+resolver = "3"
 members = ["uranium", "mine_data_structs"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
