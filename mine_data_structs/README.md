@@ -1,7 +1,7 @@
 `mine_data_structs` is just a crate containing data structs for `uranium-rs`. 
 
 This crate was made by myself for **myself**, I don't care if it is useless to you,
-I don't care if it doesn't follow certain patters, indeed, I just care about it working
+I don't care if it doesn't follow certain patterns, indeed, I just care about it working
 for me.
 
 If you find this crate usefull in anyways you should reconsider many things in your
