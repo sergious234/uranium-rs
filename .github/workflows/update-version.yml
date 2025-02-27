@@ -1,0 +1,52 @@
+name: Update Crate Versions
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  update-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+
+      - name: Install cargo-edit
+        run: cargo install cargo-edit
+      
+      - name: Update mine_data_structs version
+        run: |
+          cd mine_data_structs
+          # Get current version and bump patch
+          CURRENT_VERSION=$(grep -Po '^version\s*=\s*"\K[^"]*' Cargo.toml)
+          echo "Current version: $CURRENT_VERSION"
+          cargo set-version --bump patch
+          NEW_VERSION=$(grep -Po '^version\s*=\s*"\K[^"]*' Cargo.toml)
+          echo "Updated mine_data_structs from $CURRENT_VERSION to $NEW_VERSION"
+
+      
+        
+          # - name: Update uranium-rs version
+          #   run: |
+          #     cd uranium-rs
+          #     # Extract current version
+          #     CURRENT_VERSION=$(grep -Po '^version\s*=\s*"\K[^"]*' Cargo.toml)
+          #     # Increment patch version
+          #     PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
+          #     NEW_PATCH=$((PATCH + 1))
+          #     NEW_VERSION="$(echo $CURRENT_VERSION | cut -d. -f1).$(echo $CURRENT_VERSION | cut -d. -f2).$NEW_PATCH"
+          #     # Update version in Cargo.toml
+          #     sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" Cargo.toml
+          #     echo "Updated uranium-rs from $CURRENT_VERSION to $NEW_VERSION"
+      
+      - name: Commit and push changes
+        run: |
+          git add .
+          git commit -m "Bump patch versions" || echo "No changes to commit"
+          git push 
