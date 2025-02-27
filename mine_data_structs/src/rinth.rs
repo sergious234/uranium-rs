@@ -1,3 +1,5 @@
+//! Self explainatory crate.
+
 use core::fmt;
 use std::path::Path;
 use std::{fs::read_to_string, path::PathBuf};

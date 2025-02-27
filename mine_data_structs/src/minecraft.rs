@@ -166,46 +166,6 @@ pub struct AssetIndex {
 
 pub type Libraries = Vec<Library>;
 
-pub trait Lib {
-    fn get_paths(&self) -> Vec<PathBuf>;
-    fn get_sha1(&self) -> Vec<&str>;
-    fn get_urls(&self) -> Vec<&str>;
-}
-
-impl Lib for Libraries {
-    fn get_paths(&self) -> Vec<PathBuf> {
-        self.iter()
-            .map(|l| {
-                l.downloads
-                    .as_ref()
-                    .unwrap()
-                    .artifact
-                    .path
-                    .clone()
-            })
-            .collect()
-    }
-
-    fn get_sha1(&self) -> Vec<&str> {
-        self.iter()
-            .map(|l| {
-                l.downloads
-                    .as_ref()
-                    .unwrap()
-                    .artifact
-                    .sha1
-                    .as_str()
-            })
-            .collect()
-    }
-
-    fn get_urls(&self) -> Vec<&str> {
-        self.iter()
-            .map(Library::get_url)
-            .collect()
-    }
-}
-
 /*
 
     Minecraft launcher_profiles.json
@@ -213,6 +173,7 @@ impl Lib for Libraries {
 
 */
 
+/// A profile form `launcher_profiles.json`.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Profile {
@@ -251,9 +212,12 @@ impl Profile {
     }
 
     //TODO!: Docs
+    /// This method returns the ID of the profile in case there is one. Also in case
+    /// the profile inherits the ID from other version then it will return it.
     pub fn get_id(&self) -> Option<String> {
         let mut minecraft_path = PathBuf::new();
 
+        // This just search for the minecraft root dir of the profile.
         if let Some(gd) = self.game_dir.as_ref() {
             for x in gd.ancestors() {
                 if x.file_name()
@@ -273,18 +237,11 @@ impl Profile {
 
         let r: Root = serde_json::from_reader(file).ok()?;
 
-        if r.inherits_from.is_some() {
-            Some(
-                r.inherits_from
-                    .unwrap()
-                    .clone(),
-            )
-        } else {
-            Some(r.id.clone())
-        }
+        Some(r.inherits_from.unwrap_or(r.id.clone()))
     }
 }
 
+/// Settings from `launcher_profiles.json`
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 #[allow(clippy::struct_excessive_bools)]
@@ -399,8 +356,6 @@ impl ProfilesJson {
         Ok(parsed)
     }
 
-    //TODO!
-    // Change &str -> String so it fits better the hashmap signature
     pub fn insert(&mut self, profile_name: &str, data: Profile) {
         self.get_mut_profiles()
             .insert(profile_name.to_owned(), data);
