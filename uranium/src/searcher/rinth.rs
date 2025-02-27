@@ -211,7 +211,7 @@ impl SearchBuilder<SearchType> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust no_run
     /// # use uranium::searcher::rinth::{SearchBuilder, SearchType};
     /// let search_builder: String = SearchBuilder::new()
     ///     .limit(10)

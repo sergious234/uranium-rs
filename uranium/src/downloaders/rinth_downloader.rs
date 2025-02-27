@@ -18,7 +18,7 @@ use crate::{
 /// Like CurseDownloader this struct takes a generic parameter which will be the
 /// downloader to use:
 ///
-/// ```rust
+/// ```rust no_run
 /// # use uranium::downloaders::Downloader;
 /// # use uranium::downloaders::RinthDownloader;
 /// # use uranium::error::Result;
@@ -77,15 +77,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
         let files = links
             .iter()
             .zip(names.iter())
-            .map(|(url, name)| {
-                DownloadableObject::new(
-                    url,
-                    name.to_str()
-                        .unwrap_or_default(),
-                    destination,
-                    None,
-                )
-            })
+            .map(|(url, name)| DownloadableObject::new(url, &destination.join(name), None))
             .collect();
 
         Ok(RinthDownloader {

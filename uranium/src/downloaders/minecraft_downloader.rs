@@ -7,13 +7,14 @@ use std::{
 
 use log::{error, info, warn};
 use mine_data_structs::minecraft::{
-    Lib, Libraries, MinecraftVersions, ObjectData, Profile, ProfilesJson, Resources, Root,
+    Libraries, MinecraftVersions, ObjectData, Profile, ProfilesJson, Resources, Root,
 };
 use reqwest;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 
 use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader, HashType};
+use super::RuntimeDownloader;
 use crate::{
     code_functions::N_THREADS,
     error::{Result, UraniumError},
@@ -397,6 +398,18 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
 
                 match download_state {
                     Ok(DownloadState::Completed) => {
+                        let runtime_res = RuntimeDownloader::new(
+                            self.minecraft_instance
+                                .java_version
+                                .component
+                                .to_string(),
+                        )
+                        .download()
+                        .await;
+
+                        if let Err(err) = runtime_res {
+                            error!("Error downloading runtime: {}", err);
+                        }
                         self.download_state = MinecraftDownloadState::CheckingFiles;
                     }
                     Err(e) => {
@@ -408,7 +421,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
                     }
                     _ => {}
                 }
-                self.download_state = MinecraftDownloadState::CheckingFiles;
+                //self.download_state = MinecraftDownloadState::CheckingFiles;
             }
 
             MinecraftDownloadState::CheckingFiles => {
@@ -518,9 +531,9 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             self.resources
                 .push(DownloadableObject::new(
                     &url,
-                    path.to_str()
-                        .unwrap_or_default(),
-                    &self.dot_minecraft_path,
+                    &self
+                        .dot_minecraft_path
+                        .join(path),
                     Some(HashType::Sha1(obj.hash.to_owned())),
                 ));
         }
@@ -557,9 +570,12 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         for p in names {
             std::fs::create_dir_all(
                 self.dot_minecraft_path
-                    .join(&p.name)
+                    .join(
+                        p.name()
+                            .ok_or(UraniumError::other("No filename"))?,
+                    )
                     .parent()
-                    .ok_or(UraniumError::Other)?,
+                    .ok_or(UraniumError::other("Error creating assests forlder"))?,
             )?;
         }
 
@@ -596,42 +612,27 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         let libraries = &self
             .minecraft_instance
             .libraries;
-        let raw_paths = libraries.get_paths();
-        let urls = Self::get_os_libraries(libraries);
 
-        let good_paths: Vec<PathBuf> = raw_paths
+        let lib_path = self
+            .dot_minecraft_path
+            .join("libraries");
+
+
+        let files = libraries
             .iter()
-            .map(|p| {
-                self.dot_minecraft_path
-                    .join(PathBuf::from("libraries").join(p))
+            .map(|l| {
+                &l.downloads
+                    .as_ref()
+                    .unwrap()
+                    .artifact
             })
-            .collect();
-
-        for p in &good_paths {
-            std::fs::create_dir_all(
-                p.parent()
-                    .ok_or(UraniumError::Other)?,
-            )?;
-        }
-
-        // TODO!: Fix this unwraps
-        let files = good_paths
-            .iter()
-            .zip(&urls)
-            .zip(raw_paths)
-            .map(|((path, url), lib_path)| {
+            .map(|art| {
                 DownloadableObject::new(
-                    url,
-                    lib_path
-                        .file_name()
-                        .unwrap()
-                        .to_str()
-                        .unwrap_or_default(),
-                    path.parent().unwrap(),
-                    None,
+                    &art.url,
+                    &lib_path.join(&art.path),
+                    Some(HashType::Sha1(art.sha1.clone())),
                 )
-            })
-            .collect();
+            }).collect();
 
         self.downloader = Some(T::new(files));
 

@@ -44,6 +44,12 @@ pub enum UraniumError {
     OtherWithReason(String),
 }
 
+impl UraniumError {
+    pub fn other(msg: &str) -> Self {
+        Self::OtherWithReason(msg.to_string())
+    }
+}
+
 impl From<reqwest::Error> for UraniumError {
     fn from(value: reqwest::Error) -> Self {
         UraniumError::RequestError(value)

@@ -18,7 +18,7 @@
 //! your own downloader if you dislike mine :( or thinks you can do a faster
 //! one.
 //!
-//! ``` rust
+//! ``` rust no_run
 //! # async fn x() {
 //! use uranium::downloaders::{Downloader, RinthDownloader};
 //!
@@ -39,7 +39,7 @@
 use std::path::Path;
 
 use downloaders::{
-    CurseDownloader, Downloader, FileDownloader, MinecraftDownloader as MD, RinthDownloader,
+    CurseDownloader, Downloader, FileDownloader, MinecraftDownloader as MD, RinthDownloader, RuntimeDownloader
 };
 use error::{Result, UraniumError};
 use log::info;
@@ -183,12 +183,7 @@ pub fn init_logger() -> Result<()> {
 
     let log_file_name = home_dir
         .join(".uranium")
-        .join(format!(
-            "log_{}",
-            Local::now()
-                .format("%H-%M-%S_%d-%m-%Y")
-                .to_string()
-        ));
+        .join(format!("log_{}", Local::now().format("%H-%M-%S_%d-%m-%Y")));
 
     let latest_log_file = home_dir
         .join(".uranium")

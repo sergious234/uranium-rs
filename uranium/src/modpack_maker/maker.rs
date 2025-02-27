@@ -4,14 +4,14 @@ use std::{
 };
 
 use futures::future::join_all;
-use log::error;
+use log::{error, warn};
 use mine_data_structs::rinth::{RinthModpack, RinthVersion};
 use reqwest::Response;
 
 use crate::searcher::rinth::{SearchBuilder, SearchType};
 use crate::{
     code_functions::N_THREADS, error::Result, error::UraniumError, hashes::rinth_hash,
-    variables::constants, zipper::compress_pack,
+    variables::constants, variables::constants::RINTH_JSON, zipper::compress_pack,
 };
 
 type HashFilename = Vec<(String, String)>;
@@ -214,8 +214,13 @@ impl ModpackMaker {
                     return Err(UraniumError::CantCompress);
                 }
 
-                std::fs::remove_file(constants::RINTH_JSON)
-                    .map_err(|_| UraniumError::CantRemoveJSON)?;
+                match std::fs::remove_file(RINTH_JSON) {
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                        warn!("Couldn't remove {RINTH_JSON}")
+                    }
+                    Err(e) => Err(e)?,
+                    Ok(_) => {}
+                }
 
                 State::Finish
             }

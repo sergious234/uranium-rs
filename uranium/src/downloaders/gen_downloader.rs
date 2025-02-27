@@ -1,7 +1,7 @@
+use std::fs::create_dir_all;
 use std::sync::Arc;
 use std::{
     collections::VecDeque,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
     path::{Path, PathBuf},
 };
 
@@ -85,6 +85,10 @@ pub trait FileDownloader {
 
     /// Return how many requests the downloader has.
     fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// Indicates the state of the downloader
@@ -116,19 +120,23 @@ pub enum HashType {
 #[derive(Debug, Clone)]
 pub struct DownloadableObject {
     pub url: String,
-    pub name: String,
     pub path: PathBuf,
     pub hash: Option<HashType>,
 }
 
 impl DownloadableObject {
-    pub fn new(url: &str, name: &str, path: &Path, hash: Option<HashType>) -> Self {
+    pub fn new(url: &str, path: &Path, hash: Option<HashType>) -> Self {
         Self {
             url: url.to_owned(),
-            name: name.to_owned(),
             path: path.to_owned(),
             hash,
         }
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        self.path
+            .file_name()
+            .and_then(|f| f.to_str())
     }
 }
 
@@ -151,10 +159,10 @@ impl FileDownloader for Downloader {
         info!("{n_files} files to download");
 
         let client = reqwest::ClientBuilder::new()
-            .resolve(
-                "resources.download.minecraft.net",
-                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(13, 107, 246, 43)), 80),
-            )
+            // .resolve(
+            //     "resources.download.minecraft.net",
+            //     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(13, 107, 246, 43)), 80),
+            // )
             .build()
             .expect("Error while creating the Downloader client, please report this error.");
 
@@ -240,11 +248,6 @@ impl FileDownloader for Downloader {
 }
 
 impl Downloader {
-
-    pub fn mi_static() -> i32 {
-        return -33;
-    }
-
     async fn make_requests(&mut self) -> Result<DownloadState> {
         let mut chunk_size = 32;
 
@@ -255,6 +258,7 @@ impl Downloader {
         let files = &self.files[self.start..self.start + chunk_size];
 
         let mut requests_vec = Vec::new();
+
         for file in files {
             let rq = self.requester.clone();
             let file_url = file.url.to_owned();
@@ -272,7 +276,7 @@ impl Downloader {
             .position(|e| e.is_err())
         {
             error!("{:?}", responses[i]);
-            return Err(UraniumError::Other);
+            return Err(UraniumError::other(&format!("Error: {:?}", responses[i])));
         }
 
         let responses = responses
@@ -316,12 +320,12 @@ async fn download_and_write(
         .into_iter()
         .zip(files.into_iter())
     {
-        let file_path = obj.path.join(&obj.name);
+        //obj.path;
 
         // If the file already exits check if its hash match, if so go for
         // the next file.
-        if file_path.exists() {
-            let content = tokio::fs::read(&file_path).await?;
+        if obj.path.exists() {
+            let content = tokio::fs::read(&obj.path).await?;
             let good_hash = match obj.hash {
                 Some(HashType::Sha1(ref expected)) => {
                     let mut hasher = sha1::Sha1::new();
@@ -343,13 +347,24 @@ async fn download_and_write(
                 .map(|e| e as usize)
                 .unwrap_or_default();
 
+            if !response.status().is_success() {
+                return Err(UraniumError::other(&format!(
+                    "Error with response, status {}",
+                    response.status()
+                )));
+            }
+
             let mut bytes_stream = response.bytes_stream();
+
+            if !obj.path.exists() {
+                create_dir_all(obj.path.parent().expect("Error getting parent path of lib"))?;
+            }
 
             let mut file = tokio::fs::OpenOptions::new()
                 .create(true)
                 .write(true)
                 .truncate(true)
-                .open(&file_path)
+                .open(&obj.path)
                 .await?;
 
             let mut total = 0;
@@ -359,7 +374,7 @@ async fn download_and_write(
                 let chunk = item?;
                 match file.write(&chunk).await {
                     Err(e) => {
-                        error!("Can not write in {:?}: {}", file_path, e);
+                        error!("Can not write in {:?}: {}", obj.path, e);
                         return Err(e.into());
                     }
                     Ok(n) => total += n,
@@ -402,7 +417,7 @@ async fn download_and_write(
             .into_iter()
             .filter_map(|e| match e {
                 UraniumError::FileNotMatch(obj) => Some(obj),
-                _ => None,
+                error => {error!("{}", error); None},
             })
             .collect();
         return Err(UraniumError::FilesDontMatch(objects));

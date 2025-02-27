@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use uranium::downloaders::{Downloader, RinthDownloader};
-use uranium::rinth_pack_download;
+use uranium_rs::downloaders::{Downloader, RinthDownloader};
+use uranium_rs::rinth_pack_download;
 
 #[tokio::test]
 async fn download_pack() {
@@ -28,21 +28,21 @@ async fn download_pack() {
     }
 
     assert!(
-        rinth_pack_download(&pack_name, "../tests/data/unzipper_test")
+        rinth_pack_download(&pack_name, "tests/data/unzipper_test")
             .await
             .is_ok()
     );
 
     assert!(
-        std::fs::exists("../tests/data/minecraft_test1/mods/fabric-api-0.100.7+1.21.jar")
+        std::fs::exists("tests/data/minecraft_test1/mods/fabric-api-0.100.7+1.21.jar")
             .is_ok_and(|r| r)
     );
     assert!(
-        std::fs::exists("../tests/data/unzipper_test/mods/fabric-api-0.100.7+1.21.jar")
+        std::fs::exists("tests/data/unzipper_test/mods/fabric-api-0.100.7+1.21.jar")
             .is_ok_and(|r| r)
     );
 
     // Clear the mess we just made.
-    std::fs::remove_dir_all("../tests/data/unzipper_test").unwrap();
-    std::fs::create_dir("../tests/data/unzipper_test").unwrap();
+    std::fs::remove_dir_all("tests/data/unzipper_test").unwrap();
+    std::fs::create_dir("tests/data/unzipper_test").unwrap();
 }

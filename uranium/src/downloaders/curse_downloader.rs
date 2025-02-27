@@ -3,7 +3,7 @@ use std::path::Path;
 use futures::future::join_all;
 use mine_data_structs::{
     curse::{curse_modpacks::*, curse_mods::*},
-    url_maker::maker::Curse,
+    maker::Curse
 };
 use reqwest::Response;
 
@@ -83,12 +83,8 @@ impl<T: FileDownloader> CurseDownloader<T> {
                 .json::<CurseResponse<CurseFile>>()
                 .await?;
             files.push(DownloadableObject::new(
-                &cf.data.get_download_url(),
-                cf.data
-                    .get_file_name()
-                    .to_str()
-                    .unwrap_or_default(),
-                &mods_path,
+                cf.data.get_download_url(),
+                &mods_path.join(cf.data.get_file_name()),
                 None,
             ));
         }
@@ -181,7 +177,7 @@ impl<T: FileDownloader> CurseDownloader<T> {
         for chunk in files_ids.chunks(threads) {
             let mut requests = Vec::with_capacity(chunk.len());
             for url in chunk {
-                let task = async move { curse_req.get(url).send() }.await;
+                let task =  curse_req.get(url).send();
                 requests.push(task);
             }
             let res: Vec<Response> = join_all(requests)
