@@ -1,6 +1,5 @@
 //! Self explainatory crate.
 
-use core::fmt;
 use std::path::Path;
 use std::{fs::read_to_string, path::PathBuf};
 
@@ -38,12 +37,6 @@ pub struct RinthProject {
     //TODO!
 }
 
-impl fmt::Display for RinthProject {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "Mod name: {}", self.title)
-    }
-}
-
 /// This struct represent the `dependencies` object from a
 /// `https://api.modrinth.com/v2/project/{id|slug}/version` or
 /// `https://api.modrinth.com/v2/version/{id}` request.
@@ -69,17 +62,11 @@ pub struct Dependency {
 
 impl Dependency {
     pub fn get_project_id(&self) -> &str {
-        self.project_id
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or_default()
+        self.project_id.as_deref().unwrap_or_default()
     }
 
     pub fn get_version_id(&self) -> &str {
-        match self.version_id {
-            Some(ref id) => id,
-            None => "",
-        }
+        self.version_id.as_deref().unwrap_or_default()
     }
 }
 
@@ -156,7 +143,7 @@ pub struct Hashes {
 ///   {
 ///     "hashes": {
 ///       "sha1": "fcd985acd9c44830dd542e4cf2b67b79745665c2",
-///       "sha512": "a4d777fcb8822ed22d0f26ec9da5ee610e7a1ca7972630555bf3718ed6de73ef36eb613a2bb9f0e6115316e6986220edb96071dea0ce5a19fd6714cd97629968"
+///       "sha512": "hjdkashk139hdfksajsakjcxjsefwjo283..."
 ///     },
 ///     "url": "https://cdn.modrinth.com/data/BsfnmJP5/versions/u2NQZcGt/autocrafting-table-mod-1.0.8.jar",
 ///     "filename": "autocrafting-table-mod-1.0.8.jar",
@@ -212,14 +199,6 @@ impl RinthResponse {
     }
 }
 
-impl fmt::Display for RinthResponse {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (index, minecraft_mod) in self.hits.iter().enumerate() {
-            writeln!(f, "{:2}: {:?}", index, minecraft_mod)?;
-        }
-        write!(f, "")
-    }
-}
 
 /// This type correspond to [**category** query](https://api.modrinth.com/v2/tag/category)
 /// to the Modrinth's API
@@ -268,13 +247,7 @@ pub struct RinthModpack {
 
 impl RinthModpack {
     pub fn new() -> RinthModpack {
-        RinthModpack {
-            format_version: 1,
-            game: "minecraft".to_owned(),
-            version_id: "0.0.0".to_owned(),
-            name: "example".into(),
-            files: Vec::new(),
-        }
+        RinthModpack::default()
     }
 
     pub fn get_mods(&self) -> &[RinthMdFiles] {
@@ -303,6 +276,18 @@ impl RinthModpack {
         let j = serde_json::to_string_pretty(self)?;
         std::fs::write("modrinth.index.json", j)?;
         Ok(())
+    }
+}
+
+impl std::default::Default for RinthModpack {
+    fn default() -> Self {
+        RinthModpack {
+            format_version: 1,
+            game: "minecraft".to_owned(),
+            version_id: "0.0.0".to_owned(),
+            name: "example".into(),
+            files: Vec::new(),
+        }
     }
 }
 
