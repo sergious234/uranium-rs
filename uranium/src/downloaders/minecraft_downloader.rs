@@ -7,7 +7,7 @@ use std::{
 
 use log::{error, info, warn};
 use mine_data_structs::minecraft::{
-    Libraries, MinecraftVersions, ObjectData, Profile, ProfilesJson, Resources, Root,
+    Library, MinecraftVersions, ObjectData, Profile, ProfilesJson, Resources, Root
 };
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -504,7 +504,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         .await
         .map_err(|err| {
             error!("Cant create assets/indexes");
-            UraniumError::OtherWithReason(format!("assets/indexes: [{}]", err.to_string()))
+            UraniumError::OtherWithReason(format!("assets/indexes: [{}]", err))
         })?;
 
         if tokio::fs::create_dir_all(
@@ -584,7 +584,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
 
     /// Return a `Vec<String>` with the urls of the libraries for the current.
     /// If the lib has no specified Os then it will be inside the vector too.
-    fn get_os_libraries(libraries: &Libraries) -> Vec<String> {
+    fn get_os_libraries(libraries: &[Library]) -> Vec<String> {
         let current_os = match std::env::consts::OS {
             "linux" => mine_data_structs::minecraft::Os::Linux,
             "macos" => mine_data_structs::minecraft::Os::Other,

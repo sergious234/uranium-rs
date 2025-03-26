@@ -38,7 +38,7 @@ impl RuntimeDownloader {
             ))?
             .get_url();
 
-        let y: RuntimeFiles = client
+        let y: RuntimeFiles   = client
             .get(runtime_url)
             .send()
             .await?
@@ -51,12 +51,13 @@ impl RuntimeDownloader {
         let runtime_path =
             minecraft_root.join(format!("runtime/{}/{}/{}", self.runtime, os, self.runtime));
 
-        let executables_files: Vec<FileRelPath> = y
-            .files
-            .iter()
-            .filter(|(_, item)| item.executable)
-            .map(|(s, _)| runtime_path.join(s))
-            .collect();
+         let executables_files: Vec<FileRelPath> = y
+             .files
+             .iter()
+             .filter(|(_, item)| item.executable)
+             .map(|(s, _)| runtime_path.join(s))
+             .collect();
+
 
         #[cfg(target_os = "linux")]
         {

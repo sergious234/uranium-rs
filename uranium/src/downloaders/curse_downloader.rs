@@ -1,10 +1,7 @@
 use std::path::Path;
 
 use futures::future::join_all;
-use mine_data_structs::{
-    curse::{curse_modpacks::*, curse_mods::*},
-    maker::Curse
-};
+use mine_data_structs::{curse::*, maker};
 use reqwest::Response;
 
 use super::{gen_downloader::DownloadState, DownloadableObject};
@@ -51,7 +48,7 @@ impl<T: FileDownloader> CurseDownloader<T> {
             .get_files()
             .iter()
             .map(|f| {
-                Curse::file(
+                maker::curse_file(
                     &f.get_project_id().to_string(),
                     &f.get_file_id().to_string(),
                 )
@@ -177,7 +174,7 @@ impl<T: FileDownloader> CurseDownloader<T> {
         for chunk in files_ids.chunks(threads) {
             let mut requests = Vec::with_capacity(chunk.len());
             for url in chunk {
-                let task =  curse_req.get(url).send();
+                let task = curse_req.get(url).send();
                 requests.push(task);
             }
             let res: Vec<Response> = join_all(requests)
