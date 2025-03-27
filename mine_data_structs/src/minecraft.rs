@@ -1,4 +1,4 @@
-//! This module contains all relevant data structs for downloading/launching 
+//! This module contains all relevant data structs for downloading/launching
 //! minecraft.
 //!
 //! Also some QoL getters are provided for `strings` which you may get
@@ -6,11 +6,19 @@
 //!
 //!
 //! Data structures for parsing launcher_profiles.json are also provided
-//! with a variaty of methods such as: `ProfilesJson::read_json_from`, `ProfilesJson::insert`,
-//! etc.
+//! with a variaty of methods such as: `ProfilesJson::read_json_from`,
+//! `ProfilesJson::insert`, etc.
 //!
-//! A funcion for getting minecraft path is also included [`get_minecraft_path`], it supports
-//! windows and linux systems for now.
+//! A funcion for getting minecraft path is also included
+//! [`get_minecraft_path`], it supports windows and linux systems for now.
+//!
+//! For some info about java-runtimes go to [Runtimes]. What a surprise eh ?
+//!
+//! For info about downloading a new minecraft version go look [Root], also
+//! for launching minecraft.
+//!
+//! For info about minecraft versions (snapshots, releases, lastest versions...)
+//! go look [MinecraftVersions].
 
 use std::io::Write;
 use std::{
@@ -30,7 +38,7 @@ const BASE: &str = "https://resources.download.minecraft.net/";
 
 /// Very simple struct, no need for explanation.
 ///
-/// This is used in [Resources]
+/// This is used in [Resources].
 ///
 /// From piston-meta.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -41,12 +49,11 @@ pub struct ObjectData {
 
 impl ObjectData {
     pub fn get_link(&self) -> String {
-        format!("{}{}/{}", BASE, &self.hash[..2], self.hash)
+        format!("{BASE}{}/{}", &self.hash[..2], &self.hash)
     }
 
     pub fn get_path(&self) -> PathBuf {
         PathBuf::from(&self.hash[..2]).join(&self.hash)
-        //PathBuf::from(self.hash[..2].to_owned() + "/" + &self.hash)
     }
 }
 
@@ -54,7 +61,12 @@ impl ObjectData {
 ///
 /// Look [Root] for more information.
 ///
-/// From piston-meta
+/// From piston-meta.
+///
+/// Yep, this is the SAME EXACT STRUCT AS [Manifest]. But for semantic
+/// reasons I'll keep both structs.
+///
+/// Maybe I should just make an alias right... ? PR !!!
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DownloadData {
     pub sha1: String,
@@ -66,6 +78,8 @@ pub struct DownloadData {
 ///
 /// If you come from [AssetIndex] congrats! Otherwise go look at it
 /// for a better understanding of this struct.
+///
+/// This is the fecthed answer from the link in [AssetIndex]
 ///
 /// This looks like:
 ///
@@ -118,16 +132,6 @@ pub struct MinecraftVersion {
     pub release_time: String,
 }
 
-impl MinecraftVersion {
-    pub fn get_id_raw(&self) -> &str {
-        &self.id
-    }
-
-    pub fn get_link_raw(&self) -> &str {
-        &self.url
-    }
-}
-
 /// The whole JSON from launchermeta.mojang.com with `latest` and `versions`.
 ///
 /// This struct represents the whole `JSON` found in:
@@ -136,7 +140,39 @@ impl MinecraftVersion {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MinecraftVersions {
     pub latest: Latest,
-    pub versions: Vec<MinecraftVersion>,
+    pub versions: Box<[MinecraftVersion]>,
+}
+
+impl MinecraftVersions {
+    pub fn get_latest_release_id(&self) -> &str {
+        &self.latest.release
+    }
+
+    pub fn get_latest_snapshot_id(&self) -> &str {
+        &self.latest.snapshot
+    }
+
+    pub fn get_latest_release_url(&self) -> &str {
+        // This unwrap is safe since the version we are looking for
+        // will always exists.
+        &self
+            .versions
+            .iter()
+            .find(|v| v.id == self.get_latest_release_id())
+            .unwrap()
+            .url
+    }
+
+    pub fn get_latest_snapshot_url(&self) -> &str {
+        // This unwrap is safe since the version we are looking for
+        // will always exists.
+        &self
+            .versions
+            .iter()
+            .find(|v| v.id == self.get_latest_snapshot_id())
+            .unwrap()
+            .url
+    }
 }
 
 /// Both: release and snapshot latest versions of minecraft.
@@ -149,17 +185,14 @@ pub struct Latest {
 }
 
 impl MinecraftVersions {
-    pub fn get_versions_raw(&self) -> &[MinecraftVersion] {
-        &self.versions
-    }
     /// Returns the url which correspond to the given version. In case the
     /// version doesn't exist `None` will be returned.
     ///
     /// <https://piston-meta.mojang.com/v1/packages/f0025b5b37c7efcf50807fc24b5fc7ef7ab18ea5/1.21.4.json>
     pub fn get_instance_url(&self, instance: &str) -> Option<&str> {
         for version in &self.versions {
-            if version.get_id_raw() == instance {
-                return Some(version.get_link_raw());
+            if version.id == instance {
+                return Some(&version.url);
             }
         }
         None
@@ -195,7 +228,7 @@ impl MinecraftVersions {
 pub struct Library {
     pub downloads: Option<LibraryDownloads>,
     pub name: String,
-    pub rules: Option<Vec<Rule>>,
+    pub rules: Option<Box<[Rule]>>,
 }
 
 impl Library {
@@ -217,10 +250,6 @@ impl Library {
             .artifact
             .url
             .as_str()
-    }
-
-    pub fn get_name(&self) -> &str {
-        &self.name
     }
 }
 
@@ -308,7 +337,6 @@ impl Profile {
             })??
             .to_path_buf();
 
-
         let version_path = minecraft_path
             .join("versions")
             .join(&self.last_version_id)
@@ -324,7 +352,6 @@ impl Profile {
         )
     }
 }
-
 
 /// Settings from `launcher_profiles.json`
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -402,7 +429,6 @@ pub struct ProfilesJson {
     pub version: usize,
 }
 
-
 impl ProfilesJson {
     /// Reads the content of `launcher_profiles.json` from `path`.
     ///
@@ -478,7 +504,55 @@ impl ProfilesJson {
 /// This struct is also the repr of minecraft version from piston-meta.
 ///
 /// This struct will be used when launching minecraft from the command line
-/// or when downloading a new minecraft profile from piston-meta.
+/// and/or when downloading a new minecraft profile from piston-meta.
+///
+/// # JSON EXAMPLE
+/// An example of the outter JSON might looks like this:
+/// ```json 
+/// {
+///     arguments: {…},
+///     assetIndex: {…},
+///     assets: "19",
+///     complianceLevel: 1,
+///     downloads: {…},
+///     id: "1.21.4",
+///     javaVersion: {…},
+///     libraries: […],
+///     logging: {…},
+///     mainClass: "net.minecraft.client.main.Main",
+///     minimumLauncherVersion: 21,
+///     type: "release"
+/// }
+/// ```
+///
+/// # Downloading minecraft yay !
+///
+/// When using this struct to download a new minecraft version fields of
+/// insterest are:
+/// - `asset_index`
+/// - `assets`
+/// - `libraries`
+/// - `downloads`
+/// - `java_version` (In case Java is not installed)
+///
+/// You will find urls to file/files you need in order to run minecraft.
+///
+/// # Launching minecraft !
+///
+/// So in order to launch minecraft you will need to read a file from
+/// _minecraft_root/versions/{version_name}/{version_name}.json_
+///
+/// This file contains a JSON with this struct. You will need the following
+/// fields in order to launch minecraft:
+/// - arguments
+/// - assets
+/// - java_version (In case Java is not installed or you want the custom runtime)
+/// - libraries (you must add them to java path -cp)
+/// - main_class
+/// - logging (Not mandatory but usefull)
+///
+///
+/// I KNOW TIME AND RELEASETIME FIELDS ARE MISSING, NEED THEM ? PR !!!!
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Root {
@@ -493,7 +567,7 @@ pub struct Root {
     pub id: String,
 
     pub java_version: JavaVersion,
-    pub libraries: Vec<Library>,
+    pub libraries: Box<[Library]>,
     pub inherits_from: Option<String>,
 
     #[serde(default = "Default::default")]
@@ -527,9 +601,11 @@ pub struct JavaVersion {
 /// Arguments which must be pass to java when launching minecraft.
 ///
 /// *IMPORTANT*: jvm args are not supported yet!
+///
+/// Want them right now ? PR !!!
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Arguments {
-    game: Vec<GameArgument>,
+    pub game: Box<[GameArgument]>,
     //jvm: HashMap<String, String>,
 }
 
@@ -540,32 +616,43 @@ pub struct Arguments {
 ///  + `Object`: an argument which has rules/actions associed to it.
 ///
 ///  Examples of `Object` arguments are "--demo", "--width" or "--height".
-///  Examples of `String` arguments are "--gameDir", "--version" or "--username".
+///  Examples of `String` arguments are "--gameDir", "--version" or
+/// "--username".
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum GameArgument {
     String(String),
-    Object{rules: Vec<Rule>, value: ValueType},
+    Object {
+        rules: Box<[Rule]>,
+        value: ValueType,
+    },
 }
 
+/// GO LOOK [GameArgument] !!!
+///
+/// Two value types:
+///  - Single (A single String)
+///  - Multiple (Multiple String)
+///
+/// From piston-meta
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum ValueType {
-    // Just like me 
+    // Just like me
     Single(String),
-    Multiple(Box<[String]>)
+    Multiple(Box<[String]>),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct GameObject {
-    pub rules: Vec<Rule>,
-}
+/// A Rule for whatever Mojang/Microsft thinks its neccesary.
+///
+/// Used in libraries or args from piston-meta.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Rule {
     pub action: String,
     pub os: Option<Os>,
 }
 
+/// Enum which contains the differents Osssssssssss.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 #[serde(tag = "name")]
 pub enum Os {
@@ -631,7 +718,6 @@ pub fn get_minecraft_path() -> Option<PathBuf> {
  *  MINECRAFT JAVA RUNTIMES
  *
  *
- *
  */
 
 pub const RUNTIMES_URL: &str = "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
@@ -652,7 +738,13 @@ pub type Runtime = HashMap<RuntimeName, Box<[RuntimeData]>>;
 /// Fancy name for PathBuf
 pub type FileRelPath = PathBuf;
 
-
+/// So here we are gonna need at least 2 request to get the actual files from
+/// the runtimes. First a request to [RUNTIMES_URL], then here we must chose
+/// the prefered runtime.
+///
+/// Once selected one more request to he Manifest's URL and then parse
+/// the response into [RuntimeFiles] struct.
+///
 /// Runtimes fetched from [RUNTIMES_URL]
 ///
 /// Some archs are missing, I dont care, open a pull request if you need them.
@@ -682,7 +774,7 @@ pub struct Runtimes {
     #[serde(rename = "mac-os")]
     pub macos: Runtime,
     #[serde(rename = "mac-os-arm64")]
-    pub macosarm: Runtime
+    pub macosarm: Runtime,
 }
 
 /// Data of each Runtime.
@@ -701,6 +793,14 @@ impl RuntimeData {
     pub fn get_url(&self) -> &str {
         &self.manifest.url
     }
+
+    pub fn get_size(&self) -> usize {
+        self.manifest.size
+    }
+
+    pub fn get_sha1(&self) -> &str {
+        &self.manifest.sha1
+    }
 }
 
 /// Hash, size and url of the runtime files.
@@ -711,10 +811,9 @@ pub struct Manifest {
     pub url: String,
 }
 
-
 // https://piston-meta.mojang.com/v1/packages/3bfc5fdcc28d8897aa12f372ea98a9afeb11a813/manifest.json
 /// This is the response fetched from piston-meta when asking
-/// for runtimes. This response correspond to the url 
+/// for runtimes. This response correspond to the url
 /// of the [Manifest] inside [RuntimeData]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RuntimeFiles {
@@ -728,8 +827,6 @@ pub struct RuntimeFiles {
 /// The `downloads` String should be:
 /// - raw
 /// - lmza
-///
-///
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RuntimeFile {
     #[serde(default)]
