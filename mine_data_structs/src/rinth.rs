@@ -1,9 +1,117 @@
-//! Self explainatory crate.
+#![allow(rustdoc::bare_urls)]
+//! Module containing data structs to operate with Rinth API <3.
+//!
+//! Even tho this crate only contains de data structures (and some QoL functions) of the API the
+//! requests and parameters are also explained in each struct.
+//!
+//! Be aware that Rinth API is in constant change, right now v2 is the production
+//! server but at this time they are already working in v3. In any case if something
+//! get deprecated or new structs are available/needed I'm sure you already know...
+//! PR !!!!!!
 
+
+// TODO:
+// Project type allowed values are: mod, modpack, resourcepack, shader.
+// This looks like an enum right ?
+
+
+use std::collections::HashMap;
 use std::path::Path;
 use std::{fs::read_to_string, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
+
+// ===================
+// |Projects section |
+// ===================
+
+/// Struct which contains all the "hits" for a given search.
+///
+/// This struct is the one Modrinth will return when asked for 
+/// projects.
+///
+/// # API Request
+/// ## Search projects
+///
+/// GET https://api.modrinth.com/v2/search
+///
+/// ### Parameters
+/// - Query parameters
+///   - query:  string
+///   - facets: string
+///  
+///   - index:  string  *Allowed values: relevance downloads follows newest updated*
+///   - offset: integer
+///   - limit:  integer
+///
+/// # More info
+/// `https://docs.modrinth.com/api/operations/searchprojects/`
+///
+/// # Compatibility
+///
+/// "Deprecated values below. WILL BE REMOVED V3!"
+/// <https://github.com/modrinth/code/blob/b9d90aa6356c88c8d661c04ab84194cf08ea0198/apps/labrinth/src/models/v3/projects.rs>
+///
+/// Facets, filters and versions seems to be "deprecated" in V3 ??
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SearchProjects {
+    pub hits: Box<[Hit]>,
+    pub offset: u32,
+    pub limit: u32,
+    pub total_hits: u64,
+}
+
+impl SearchProjects {
+    pub fn len(&self) -> usize {
+        self.hits.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+/// Every hit of [`SearchProjects`] struct.
+///
+/// This struct contains the information of each hit.
+///
+/// # Missing fields
+///
+/// Want them ? PR !! 
+/// - `thread_id`
+/// - `monetization_status`
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Hit {
+    /// The slug of a project, used for vanity URLs. 
+    /// Regex: ^[\w!@$()`.+,"\-']{3,64}$
+    pub slug: String,
+    pub title: String,
+    pub description: String,
+    pub categories: Box<String>,
+    /// Allowed values: required optional unsupported unknown
+    pub client_side: String,
+    /// Allowed values: required optional unsupported unknown
+    pub server_side: String,
+    /// Allowed values: mod modpack resourcepack shader 
+    pub project_type: String,
+    pub downloads: usize,
+    pub icon_url: Option<String>,
+    pub color: Option<usize>,
+    pub project_id: String,
+    pub author: String,
+    pub display_categories: Box<[String]>,
+    pub versions: Box<[String]>,
+    pub follows: usize,
+    /// format: ISO-8601 
+    pub date_created: String,
+    /// format: ISO-8601 
+    pub date_modified: String,
+    /// The latest version of minecraft that this project supports.
+    pub latest_version: Option<String>,
+    pub license: String,
+    /// All gallery images attached to the project (urls)
+    pub gallery: Box<[String]>
+}
 
 pub enum Attributes {
     Loader,
@@ -11,64 +119,307 @@ pub enum Attributes {
     VersionType,
 }
 
-/// `RinthMod` pretends to be the structure for the response of
-/// `https://api.modrinth.com/v2/project/{id | slug}`
+
+/// A project returned from the API
+/// 
+/// # API Request
+/// ## Get a project
+///
+/// GET https://api.modrinth.com/v2/project/{id | slug}
+///
+/// ### Parameters
+/// - id|slug String (Required)
+///
 /// This type is also usable when requesting searches for rinth api
+///
+/// # Missing fields
+/// - `issues_url`
+/// - `source_url`
+/// - `wiki_url`
+/// - `discord_url`
+/// - `donation_url`
+/// - `color`
+/// - `thread_id`
+/// - `monetization_status`
+/// - `moderator message`
+/// - `approved`
+/// - `queued`
+/// - `license`
+/// - `gallery`
+///
+/// Want any of them ? PR !!!
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RinthProject {
-    // Required fields
+    /// The slug of a project, used for vanity URLs. 
+    /// Regex: ^[\w!@$()`.+,"\-']{3,64}$
     pub slug: String,
     pub title: String,
     pub description: String,
-    pub categories: Vec<String>,
+    pub categories: Box<[String]>,
+    /// Allowed values: required optional unsupported unknown 
     pub client_side: String,
+    /// Allowed values: required optional unsupported unknown 
     pub server_side: String,
     pub body: String,
+    /// Allowed values: approved archived rejected draft unlisted processing 
+    /// withheld scheduled private unknown 
     pub status: String,
+    /// Allowed values: approved archived unlisted private draft 
+    pub requested_status: Option<String>,
+    /// A list of categories which are searchable but non-primary.
+    pub additional_categories: Box<[String]>,
+    /// Allowed values: mod modpack resourcepack shader 
     pub project_type: String,
     pub downloads: u32,
+    pub icon_url: Option<String>,
     pub id: String,
     pub team: String,
+    /// The link to the long description of the project. Always null, only kept for legacy
+    /// compatibility.
+    pub body_url: Option<String>,
+    /// format: ISO-8601
+    pub published: String,
+    /// format: ISO-8601
     pub updated: String,
-    #[serde(default = "Default::default")]
-    pub versions: Vec<String>,
-    pub icon_url: String,
-    // Optional fields
-    //TODO!
+    pub followers: u32,
+    /// A list of the version IDs of the project (will never be empty unless draft status)
+    pub versions: Box<[String]>,
+    /// A list of all of the game versions supported by the project
+    pub game_versions: Box<[String]>,
+    pub loaders: Box<[String]>
 }
 
-/// This struct represent the `dependencies` object from a
-/// `https://api.modrinth.com/v2/project/{id|slug}/version` or
-/// `https://api.modrinth.com/v2/version/{id}` request.
+/// Fancy name for array of [`RinthProject`]
 ///
-/// ```json
-/// "dependencies": [
-///     {
-///         "version_id": null,
-///         "project_id": "P7dR8mSH",
-///         "file_name": null,
-///         "dependency_type": "required"
-///     }
-/// ]
-/// ```
+/// This type will be used when asking for multiple projects.
 ///
-/// Don't confuse this Dependency with modrinth.index.json dependencies.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// # API Request
+///
+/// ## Get multiple projects
+///
+/// GET https://api.modrinth.com/v2/projects
+///
+/// ### Parameters
+/// - Query parameters
+///   - ids String array (Required)
+///
+/// ## Get a list of random projects
+///
+/// GET https://api.modrinth.com/v2/projects_random
+/// 
+/// ### Parameters
+/// - count int (Required)
+///
+/// # More info: 
+///
+/// <https://docs.modrinth.com/api/operations/getprojects/>
+pub type RinthProjects = Box<[RinthProject]>;
+
+/// Struct used when getting all of a project's dependencies. 
+///
+/// This is from v2 API so maybe its removed in the future.
+///
+/// # API Requests 
+/// ## Get all of a project's dependencies
+///
+/// GET https://api.modrinth.com/v2/project/{id|slug}/dependencies
+///
+/// ### Parameters
+/// - id|slug String (Required)
+/// 
+/// # More info
+/// <https://github.com/modrinth/code/blob/main/apps/labrinth/src/routes/v2/projects.rs>
+pub struct Dependencies {
+    pub projects: Box<[RinthProject]>,
+    pub versions: Box<[DependencyInfo]>
+}
+
+
+/// A specific version of a project. This is from v2 API so maybe its removed in 
+/// a future.
+/// 
+/// Used in [`Dependencies`] [`ProjectVersions`]
+///
+/// # API Requests 
+/// ## Get a version 
+///
+/// GET https://api.modrinth.com/v2/version/{id}
+///
+/// ### Parameters
+/// - id String (Required)
+///
+/// # Latest version of a project from a hash, loader(s), and game version(s)
+///
+/// POST https://api.modrinth.com/v2/version_file/{hash}/update
+///
+/// ### Parameters
+/// - Path Parameters
+///   - hash String (Required)
+///
+/// - Query Parameters
+///   - algorithm String (Required) Allowed values: sha1 sha512 
+///
+/// ### Request Body
+/// - loaders String array (Required)
+/// - game_versions String array (Required) example: ["1.18", "1.18.1", ...]
+/// 
+/// # Missing fields
+/// - `requested_status`
+///
+/// # Used in
+/// <https://docs.modrinth.com/api/operations/getlatestversionfromhash/>
+/// <https://docs.modrinth.com/api/operations/getversion/>
+///
+/// # More info
+/// <https://github.com/modrinth/code/blob/main/apps/labrinth/src/models/v2/projects.rs>
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DependencyInfo {
+    pub name: String,
+    pub version_number: String,
+
+    pub dependencies: Box<[Dependency]>,
+
+    pub game_versions: Box<[String]>,
+    // Allowed values: release beta alpha
+    pub version_type: String,
+
+    /// A list of loaders this project supports (has a newtype struct)
+    pub loaders: Box<[String]>,
+    pub featured: bool,
+    // Allowed values: listed archived draft unlisted scheduled unknown 
+    pub status: String,
+
+    pub id: String,
+    pub project_id: String,
+    pub author_id: String,
+    /// format: ISO-8601 
+    pub date_published: String,
+    pub downloads: u32,
+    pub changelog: String,
+    pub changelog_url: Option<String>,
+    /// A list of files available for download for this version.
+    pub files: Box<[DependencyFiles]>,
+}
+
+/// A dendency which describes what versions are required, break support, or are optional to the
+/// version's functionality
+///
+/// Go look [`DependencyInfo`] for more information, this struct is used there.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Dependency {
-    version_id: Option<String>,
-    project_id: Option<String>,
-    dependency_type: String,
+    pub version_id: Option<String>,
+    pub project_id: Option<String>,
+    pub file_name: Option<String>,
+    pub dependency_type: String,
 }
 
-impl Dependency {
-    pub fn get_project_id(&self) -> &str {
-        self.project_id.as_deref().unwrap_or_default()
-    }
-
-    pub fn get_version_id(&self) -> &str {
-        self.version_id.as_deref().unwrap_or_default()
-    }
+/// A single project file, with a url for the file and the file's hash.
+///
+/// Do you think the description isn't good enough ? I copied it from
+/// the original repo: <https://github.com/modrinth/code/blob/main/apps/labrinth/src/models/v3/projects.rs>
+///
+/// Go look [`DependencyInfo`] for more information, this struct is used there.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct DependencyFiles {
+    pub hashes: std::collections::HashMap<String, String>,
+    pub url: String,
+    pub filename: String,
+    pub primary: bool,
+    pub size: u32,
+    /// Allowed values: required-resource-pack optional-resource-pack
+    pub file_type: Option<String>,
 }
+
+
+
+// ===================
+// |Versions section |
+// ===================
+
+/// Struct which is used when retrieving mods.
+///
+/// This is from v2 API so maybe its removed in the future.
+/// 
+/// This struct is also compatible with the following requests:
+///
+/// # API Requests
+/// ## 1. List project's versions
+///
+/// GET https://api.modrinth.com/v2/project/{id|slug}/version
+///
+/// ### Parameters
+/// - Path Parameters
+///   - id|slug String (Required)
+///
+/// - Query Parameters
+///   - loaders: String array
+///   - game_versions: String array
+///   - featured: bool
+///
+///
+/// ## 2. Get multiple versions
+///
+/// GET https://api.modrinth.com/v2/versions
+///
+/// ### Parameters
+/// - ids String array.
+/// 
+/// ## 3. Get version from hash
+///
+/// GET https://api.modrinth.com/v2/version_file/{hash}
+///
+/// ### Parameters 
+/// - hash string (Required)
+///
+/// # More info
+/// <https://docs.modrinth.com/api/operations/getprojectversions/>
+/// <https://docs.modrinth.com/api/operations/getversions/>
+pub struct ProjectVersions {
+    pub versions: Box<[DependencyInfo]>
+}
+
+/// Fancy name for `HashMap<String,DependencyInfo>`.
+/// 
+/// # API Requests 
+/// ## Get versions from hashses
+///
+/// GET https://api.modrinth.com/v2/version_files
+///
+/// ### Parameters
+/// - hashes String array (Required)
+/// - algorithm String *Allowed values: sha1 sha512*
+///
+/// # Used in
+/// <https://docs.modrinth.com/api/operations/versionsfromhashes/>
+pub type DependencyInfosH = HashMap<String, DependencyInfo>;
+
+// TODO: https://docs.modrinth.com/api/operations/getlatestversionsfromhashes/
+
+
+
+
+
+
+
+// DEPRECATING THIS !!
+// VVVVVVVVVVVVVVVVV
+
+// This struct represent the `dependencies` object from a
+// `https://api.modrinth.com/v2/project/{id|slug}/version` or
+// `https://api.modrinth.com/v2/version/{id}` request.
+//
+// ```json
+// "dependencies": [
+//     {
+//         "version_id": null,
+//         "project_id": "P7dR8mSH",
+//         "file_name": null,
+//         "dependency_type": "required"
+//     }
+// ]
+// ```
+//
+// Don't confuse this Dependency with modrinth.index.json dependencies.
 
 /// `RinthProject` pretends to be the response for:
 /// `https://api.modrinth.com/v2/version/{version id}`
@@ -161,44 +512,6 @@ pub struct RinthFile {
     pub primary: bool,
     pub size: usize,
 }
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct RinthHit {
-    pub slug: String,
-    pub title: String,
-    pub description: String,
-    pub client_side: String,
-    pub server_side: String,
-    pub project_type: String,
-    pub downloads: usize,
-    pub project_id: String,
-    pub author: String,
-    pub versions: Vec<String>,
-    pub follows: usize,
-    pub license: String,
-    pub icon_url: Option<String>,
-}
-
-/// This struct correspond to [**search** queries](https://api.modrinth.com/v2/search?limit=5&offset=10)
-/// to the Modrinth's API
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct RinthResponse {
-    pub hits: Vec<RinthHit>,
-    pub offset: u32,
-    pub limit: u32,
-    pub total_hits: u64,
-}
-
-impl RinthResponse {
-    pub fn len(&self) -> usize {
-        self.hits.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
 
 /// This type correspond to [**category** query](https://api.modrinth.com/v2/tag/category)
 /// to the Modrinth's API

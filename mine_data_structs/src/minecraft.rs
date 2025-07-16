@@ -52,6 +52,8 @@ impl ObjectData {
         format!("{BASE}{}/{}", &self.hash[..2], &self.hash)
     }
 
+    /// Returns the actual path:
+    /// PathBuf::from(&self.hash[..2]).join(&self.hash)
     pub fn get_path(&self) -> PathBuf {
         PathBuf::from(&self.hash[..2]).join(&self.hash)
     }
@@ -508,7 +510,7 @@ impl ProfilesJson {
 ///
 /// # JSON EXAMPLE
 /// An example of the outter JSON might looks like this:
-/// ```json 
+/// ```json
 /// {
 ///     arguments: {…},
 ///     assetIndex: {…},

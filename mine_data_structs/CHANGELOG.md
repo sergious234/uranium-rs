@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3](https://github.com/sergious234/uranium-rs/compare/mine_data_structs-v1.0.2...mine_data_structs-v1.0.3) - 2025-03-27
+
+### Other
+
+- Add more docs and fix access specifiers
+
+## [1.0.2](https://github.com/sergious234/uranium-rs/compare/mine_data_structs-v1.0.1...mine_data_structs-v1.0.2) - 2025-03-26
+
+### Other
+
+- Reestructure and docs for minecraft
+
 ## [1.0.1](https://github.com/sergious234/uranium-rs/compare/mine_data_structs-v1.0.0...mine_data_structs-v1.0.1) - 2025-02-27
 
 ### Other
