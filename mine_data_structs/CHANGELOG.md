@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5](https://github.com/sergious234/uranium-rs/compare/mine_data_structs-v1.0.4...mine_data_structs-v1.0.5) - 2025-07-17
+
+### Other
+
+- Formated
+- Fixed docs
+
 ## [1.0.4](https://github.com/sergious234/uranium-rs/compare/mine_data_structs-v1.0.3...mine_data_structs-v1.0.4) - 2025-07-16
 
 ### Other

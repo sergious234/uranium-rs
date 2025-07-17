@@ -1,6 +1,6 @@
 [package]
 name = "mine_data_structs"
-version = "1.0.4"
+version = "1.0.5"
 edition = "2024"
 authors = ["sergious234 <sergious23@gmail.com>"]
 description = "Minecraft data structures"
