@@ -498,10 +498,9 @@ impl ProfilesJson {
 /// This struct represent a .json file inside
 /// _minecraft_root/versions/{version_name}/{version_name}.json_
 ///
-/// This is very similar to `Profile` but it can also have `inherits_from`
-/// field which indicates that it should **inherit** the values from other
-/// version. (The values must be **added** and not **overwrite** the current
-/// data)
+/// **Careful**: `inherits_from` indicates that it should **inherit** the values
+/// from other version. (The values must be **added** and not **overwrite** the
+/// current data)
 ///
 /// This struct is also the repr of minecraft version from piston-meta.
 ///
@@ -526,6 +525,8 @@ impl ProfilesJson {
 ///     type: "release"
 /// }
 /// ```
+/// The fields are renamed to snake_case and type -> version_type since  `type`
+/// is a keyword.
 ///
 /// # Downloading minecraft yay !
 ///
@@ -548,7 +549,8 @@ impl ProfilesJson {
 /// fields in order to launch minecraft:
 /// - arguments
 /// - assets
-/// - java_version (In case Java is not installed or you want the custom runtime)
+/// - java_version (In case Java is not installed or you want the custom
+///   runtime)
 /// - libraries (you must add them to java path -cp)
 /// - main_class
 /// - logging (Not mandatory but usefull)
@@ -565,7 +567,9 @@ pub struct Root {
     #[serde(default = "Default::default")]
     pub assets: String,
 
+    /// .minecraft/versions/version/version.jar
     pub downloads: HashMap<String, DownloadData>,
+    /// Actual version example: 1.21.7
     pub id: String,
 
     pub java_version: JavaVersion,
@@ -581,12 +585,15 @@ pub struct Root {
 
 impl Root {
     pub fn get_index_name(&self) -> String {
+        self.assets.clone() + ".json"
+        /*
         let assets_url = self.asset_index.url.as_str();
         assets_url[&assets_url
             .rfind('/')
             .unwrap_or_default()
             + 1..]
             .to_owned()
+        */
     }
 }
 
