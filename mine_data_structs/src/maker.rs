@@ -3,7 +3,6 @@
 
 const BASE_CUR_URL: &str = "https://api.curseforge.com";
 
-
 pub fn curse_file(mod_id: &str, file_id: &str) -> String {
     format!("{}/v1/mods/{}/files/{}", BASE_CUR_URL, mod_id, file_id)
 }
