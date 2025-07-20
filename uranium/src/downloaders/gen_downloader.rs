@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use futures::{future::join_all, StreamExt};
+use futures::{StreamExt, future::join_all};
 use log::{error, info, warn};
 use reqwest::Response;
 use sha1::Digest;
@@ -86,6 +86,27 @@ pub trait FileDownloader {
     /// Return how many requests the downloader has.
     fn len(&self) -> usize;
 
+    /// Adds a single `DownloadableObject` to the downloader's queue.
+    ///
+    /// This method allows you to dynamically add new download tasks to an
+    /// existing downloader instance. The object will be queued for download
+    /// and processed according to the downloader's scheduling logic.
+    fn add_object(&mut self, obj: DownloadableObject);
+
+    /// Adds multiple `DownloadableObject`s to the downloader's queue.
+    ///
+    /// This is a convenience method that accepts any iterator of
+    /// `DownloadableObject`s and adds them all to the download queue.
+    /// Internally, it calls `add_object` for each item in the iterator.
+    fn add_objects<T>(&mut self, objs: T)
+    where
+        T: IntoIterator<Item = DownloadableObject>,
+    {
+        objs.into_iter()
+            .for_each(|f| self.add_object(f));
+    }
+
+    /// Returns `true` if the downloader has no downloadable objects.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -176,10 +197,10 @@ impl FileDownloader for Downloader {
     }
 
     async fn progress(&mut self) -> Result<DownloadState> {
-        let mut x = N_THREADS();
-        while x > 0 && self.start != self.files.len() && self.s.available_permits() > 0 {
+        //let mut x = N_THREADS();
+        while self.start != self.files.len() && self.s.available_permits() > 0 {
             self.make_requests().await?;
-            x -= 1;
+            //x -= 1;
         }
 
         if !self.tasks.is_empty() {
@@ -236,66 +257,99 @@ impl FileDownloader for Downloader {
     }
 
     /// Returns how many requests are left.
-    #[must_use]
     fn requests_left(&self) -> usize {
         self.files.len() - self.start + self.tasks.len()
     }
 
-    #[must_use]
     fn len(&self) -> usize {
         self.files.len()
+    }
+
+    /// Add an object to the files vector.
+    fn add_object(&mut self, obj: DownloadableObject) {
+        self.files.push(obj);
+    }
+
+    fn add_objects<T>(&mut self, objs: T)
+    where
+        T: IntoIterator<Item = DownloadableObject>,
+    {
+        self.files.extend(objs);
     }
 }
 
 impl Downloader {
-    async fn make_requests(&mut self) -> Result<DownloadState> {
-        let mut chunk_size = 32;
-
-        if self.start + chunk_size > self.files.len() {
-            chunk_size = self.files.len() - self.start;
-        }
-
-        let files = &self.files[self.start..self.start + chunk_size];
-
-        let mut requests_vec = Vec::new();
-
-        for file in files {
-            let rq = self.requester.clone();
-            let file_url = file.url.to_owned();
-
-            requests_vec.push(async move { rq.get(&file_url).send().await });
-        }
-
-        let responses: Vec<std::result::Result<Response, reqwest::Error>> = join_all(requests_vec)
-            .await
-            .into_iter()
-            .collect();
-
-        if let Some(i) = responses
-            .iter()
-            .position(|e| e.is_err())
-        {
-            error!("{:?}", responses[i]);
-            return Err(UraniumError::other(&format!("Error: {:?}", responses[i])));
-        }
-
-        let responses = responses
-            .into_iter()
-            .flatten()
-            .collect();
-
-        let files = self.files[self.start..self.start + chunk_size].to_vec();
-        let sem = self
-            .s
+    /// Improved semaphore acquisition with proper error handling
+    async fn acquire_semaphore(&self) -> Result<OwnedSemaphorePermit> {
+        self.s
             .clone()
             .acquire_owned()
             .await
-            .unwrap();
-        let task = tokio::spawn(async move { download_and_write(files, responses, sem).await });
+            .map_err(|e| UraniumError::other(&format!("Failed to acquire semaphore: {e}")))
+    }
+
+    fn get_next_chunk(&mut self) -> Vec<DownloadableObject> {
+        const DEFAULT_CHUNK_SIZE: usize = 32;
+
+        let remaining = self.files.len() - self.start;
+        if remaining == 0 {
+            return vec![];
+        }
+
+        let chunk_size = DEFAULT_CHUNK_SIZE.min(remaining);
+        let end = self.start + chunk_size;
+        let chunk = self.files[self.start..end].to_vec();
+
+        self.start = end;
+        chunk
+    }
+
+    /// Fetches HTTP responses for a chunk of files
+    async fn fetch_responses(&self, files: &[DownloadableObject]) -> Result<Vec<Response>> {
+        let requests = files.iter().map(|file| {
+            let requester = self.requester.clone();
+            let url = file.url.clone();
+            async move {
+                requester
+                    .get(&url)
+                    .send()
+                    .await
+            }
+        });
+
+        let responses = join_all(requests).await;
+
+        // Find first error and return it
+        for (i, response) in responses.iter().enumerate() {
+            if let Err(e) = response {
+                error!("Request failed for file {}: {:?}", i, e);
+                return Err(UraniumError::other(&format!("Request failed: {e:?}")));
+            }
+        }
+
+        Ok(responses
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>())
+    }
+
+    async fn make_requests(&mut self) -> Result<DownloadState> {
+        let chunk = self.get_next_chunk();
+        if chunk.is_empty() {
+            return Ok(DownloadState::Completed);
+        }
+
+        let responses = self
+            .fetch_responses(&chunk)
+            .await?;
+
+        let sem = self
+            .acquire_semaphore()
+            .await?;
+        let task = tokio::spawn(async move { download_and_write(chunk, responses, sem).await });
 
         info!("Pushing new task {}", self.start);
         self.tasks.push_back(task);
-        self.start += chunk_size;
         Ok(DownloadState::MakingRequests)
     }
 }
@@ -313,96 +367,19 @@ async fn download_and_write(
         ));
     }
 
-    info!("Downloading data");
     let mut bytes_from_res = Vec::with_capacity(responses.len());
 
     for (response, obj) in responses
         .into_iter()
         .zip(files.into_iter())
     {
-        //obj.path;
-
         // If the file already exits check if its hash match, if so go for
         // the next file.
-        if obj.path.exists() {
-            let content = tokio::fs::read(&obj.path).await?;
-            let good_hash = match obj.hash {
-                Some(HashType::Sha1(ref expected)) => {
-                    let mut hasher = sha1::Sha1::new();
-                    hasher.update(&content);
-                    let actual = hex::encode(hasher.finalize());
-                    &actual == expected
-                }
-                None => false,
-            };
-
-            if good_hash {
-                continue;
-            }
+        if verify_file_hash(&obj.path, &obj.hash).await? {
+            continue;
         }
 
-        bytes_from_res.push(async move {
-            let content_length = response
-                .content_length()
-                .map(|e| e as usize)
-                .unwrap_or_default();
-
-            if !response.status().is_success() {
-                return Err(UraniumError::other(&format!(
-                    "Error with response, status {}",
-                    response.status()
-                )));
-            }
-
-            let mut bytes_stream = response.bytes_stream();
-
-            if !obj.path.exists() {
-                create_dir_all(obj.path.parent().expect("Error getting parent path of lib"))?;
-            }
-
-            let mut file = tokio::fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .truncate(true)
-                .open(&obj.path)
-                .await?;
-
-            let mut total = 0;
-            let mut buffer = Vec::with_capacity(content_length);
-
-            while let Some(item) = bytes_stream.next().await {
-                let chunk = item?;
-                match file.write(&chunk).await {
-                    Err(e) => {
-                        error!("Can not write in {:?}: {}", obj.path, e);
-                        return Err(e.into());
-                    }
-                    Ok(n) => total += n,
-                };
-                buffer.extend(chunk);
-            }
-
-            let good_hash = match obj.hash {
-                Some(HashType::Sha1(ref expected)) if total == content_length => {
-                    let mut hasher = sha1::Sha1::new();
-                    hasher.update(&buffer);
-                    let actual = hex::encode(hasher.finalize());
-                    &actual == expected
-                }
-
-                // If a hash is available but the download size doesn't match
-                // the content length then something is wrong.
-                Some(_) => false,
-
-                None => true,
-            };
-
-            if total == content_length && good_hash {
-                Ok(())
-            } else {
-                Err(UraniumError::FileNotMatch(obj))
-            }
-        });
+        bytes_from_res.push(download_single_file(response, obj));
     }
 
     let errors: Vec<_> = join_all(bytes_from_res)
@@ -417,7 +394,10 @@ async fn download_and_write(
             .into_iter()
             .filter_map(|e| match e {
                 UraniumError::FileNotMatch(obj) => Some(obj),
-                error => {error!("{}", error); None},
+                error => {
+                    error!("{}", error);
+                    None
+                }
             })
             .collect();
         return Err(UraniumError::FilesDontMatch(objects));
@@ -425,4 +405,78 @@ async fn download_and_write(
 
     info!("Chunk wrote successfully!");
     Ok(())
+}
+
+/// Verifies if a file matches its expected hash
+async fn verify_file_hash(path: &Path, expected_hash: &Option<HashType>) -> Result<bool> {
+    if !path.exists() {
+        return Ok(false);
+    }
+
+    let Some(HashType::Sha1(expected)) = expected_hash else {
+        return Ok(false);
+    };
+
+    let content = tokio::fs::read(path).await?;
+    let mut hasher = sha1::Sha1::new();
+    hasher.update(&content);
+    let actual = hex::encode(hasher.finalize());
+
+    Ok(&actual == expected)
+}
+
+async fn download_single_file(response: Response, obj: DownloadableObject) -> Result<()> {
+    if !response.status().is_success() {
+        return Err(UraniumError::other(&format!(
+            "Error with response, status {}",
+            response.status()
+        )));
+    }
+
+    let content_length = response
+        .content_length()
+        .map(|e| e as usize)
+        .unwrap_or_default();
+
+    let mut bytes_stream = response.bytes_stream();
+
+    if !obj.path.exists() {
+        create_dir_all(
+            obj.path
+                .parent()
+                .expect("Error getting parent path of lib"),
+        )?;
+    }
+
+    let mut file = tokio::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&obj.path)
+        .await?;
+
+    let mut total = 0;
+    let mut buffer = Vec::with_capacity(content_length);
+
+    while let Some(item) = bytes_stream.next().await {
+        let chunk = item?;
+        match file.write(&chunk).await {
+            Err(e) => {
+                error!("Can not write in {:?}: {}", obj.path, e);
+                return Err(e.into());
+            }
+            Ok(n) => total += n,
+        };
+        buffer.extend(chunk);
+    }
+
+    if total == content_length
+        && verify_file_hash(&obj.path, &obj.hash)
+            .await
+            .is_ok_and(|x| x)
+    {
+        Ok(())
+    } else {
+        Err(UraniumError::FileNotMatch(obj))
+    }
 }
