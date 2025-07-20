@@ -42,3 +42,7 @@ path = "tests/rinth_downloader.rs"
 [[test]]
 name = "runtime"
 path = "tests/runtime_downloader.rs"
+
+[[test]]
+name = "installation_verification"
+path = "tests/installation_verification.rs"
