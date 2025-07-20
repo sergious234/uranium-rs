@@ -253,6 +253,18 @@ impl Library {
             .url
             .as_str()
     }
+
+    pub fn get_rel_path(&self) -> Option<&Path> {
+        self.downloads
+            .as_ref()
+            .map(|ld| ld.artifact.path.as_path())
+    }
+
+    pub fn get_hash(&self) -> Option<&str> {
+        self.downloads
+            .as_ref()
+            .map(|ld| ld.artifact.sha1.as_str())
+    }
 }
 
 /*
@@ -342,7 +354,8 @@ impl Profile {
         let version_path = minecraft_path
             .join("versions")
             .join(&self.last_version_id)
-            .join(self.last_version_id.clone() + ".json");
+            .join(&self.last_version_id)
+            .with_extension("json");
 
         let file = std::fs::File::open(version_path).ok()?;
 
