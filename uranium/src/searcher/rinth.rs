@@ -486,8 +486,10 @@ mod tests {
             .game_versions(vec!["1.18".to_string(), "1.18.2".to_string()])
             .build_url();
 
-        assert_eq!("https://api.modrinth.com/v2/project/Jw3Wx1KR/version?game_versions=[\"1.18\",\"1.18.2\"]",
-        url);
+        assert_eq!(
+            "https://api.modrinth.com/v2/project/Jw3Wx1KR/version?game_versions=[\"1.18\",\"1.18.2\"]",
+            url
+        );
     }
     #[tokio::test]
     pub async fn search_categories() {

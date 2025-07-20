@@ -9,7 +9,7 @@ pub use maker::ModpackMaker;
 pub use maker::State;
 use mine_data_structs::minecraft::Profile;
 use mine_data_structs::rinth::{RinthModpack, RinthVersion, RinthVersionFile, RinthVersions};
-use reqwest::header::{HeaderMap, CONTENT_TYPE};
+use reqwest::header::{CONTENT_TYPE, HeaderMap};
 use reqwest::{Body, ClientBuilder};
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;

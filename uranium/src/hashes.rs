@@ -4,7 +4,7 @@ use hex::ToHex;
 use murmurhash32::murmurhash2;
 use sha1::{Digest, Sha1};
 
-// TODO: 
+// TODO:
 // Remove unwraps
 
 fn get_sha1_from_file<I: AsRef<Path>>(file_path: I) -> String {
@@ -30,6 +30,10 @@ fn get_sha1_from_file<I: AsRef<Path>>(file_path: I) -> String {
     temp.encode_hex::<String>()
 }
 
+// This function is coded like shit, remember to check if file exists before
+// using it or it will panic.
+//
+// For sure I need to fix it.
 pub fn rinth_hash(path: &Path) -> String {
     get_sha1_from_file(path)
 }

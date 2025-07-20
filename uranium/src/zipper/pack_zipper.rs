@@ -51,7 +51,9 @@ pub fn compress_pack<P: AsRef<Path>>(
         .is_some_and(|e| e == EXTENSION)
     {
         let mut temp = name.to_path_buf();
-        temp.add_extension(EXTENSION);
+
+        // temp.add_extension(EXTENSION);
+        temp.set_extension(EXTENSION);
         temp
     } else {
         name.to_path_buf()
@@ -78,7 +80,7 @@ pub fn compress_pack<P: AsRef<Path>>(
     // file type.
     search_files(path, &PathBuf::from(CONFIG_DIR), &mut config_files)?;
 
-    add_files_to_zip(&path, &mut config_files, &mut zip, options)?;
+    add_files_to_zip(path, &mut config_files, &mut zip, options)?;
 
     // Add the modpack_temp.json file
     let modpack_json = File::open(constants::RINTH_JSON).unwrap();

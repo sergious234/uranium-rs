@@ -1,4 +1,3 @@
-#![feature(path_add_extension)]
 #![forbid(unsafe_code)]
 #![warn(clippy::all)]
 
@@ -39,7 +38,7 @@
 use std::path::Path;
 
 use downloaders::{
-    CurseDownloader, Downloader, FileDownloader, MinecraftDownloader as MD, RinthDownloader, RuntimeDownloader
+    CurseDownloader, Downloader, FileDownloader, MinecraftDownloader as MD, RinthDownloader,
 };
 use error::{Result, UraniumError};
 use log::info;
@@ -51,6 +50,7 @@ pub mod downloaders;
 pub mod error;
 pub mod modpack_maker;
 pub mod searcher;
+pub mod version_checker;
 
 mod code_functions;
 mod hashes;

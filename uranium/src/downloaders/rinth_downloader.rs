@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use log::info;
-use mine_data_structs::rinth::{load_rinth_pack, RinthMdFiles, RinthModpack};
+use mine_data_structs::rinth::{RinthMdFiles, RinthModpack, load_rinth_pack};
 
 use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader};
 use crate::zipper::pack_unzipper::remove_temp_pack;

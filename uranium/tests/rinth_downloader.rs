@@ -23,7 +23,7 @@ async fn download_pack() {
         }
         Err(e) => {
             eprintln!("Something went wrong: {e}");
-            return ;
+            return;
         }
     }
 

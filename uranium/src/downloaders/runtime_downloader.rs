@@ -1,11 +1,11 @@
 use std::fs;
 
-use mine_data_structs::minecraft::{get_minecraft_path, RuntimeFiles, Runtimes};
 use mine_data_structs::minecraft::{FileRelPath, RUNTIMES_URL};
+use mine_data_structs::minecraft::{RuntimeFiles, Runtimes, get_minecraft_path};
 use reqwest::Client;
 
 use super::DownloadableObject;
-use crate::downloaders::{Downloader, FileDownloader};
+use crate::downloaders::{Downloader, FileDownloader, HashType};
 use crate::error::{Result, UraniumError};
 
 pub struct RuntimeDownloader {
@@ -38,7 +38,7 @@ impl RuntimeDownloader {
             ))?
             .get_url();
 
-        let y: RuntimeFiles   = client
+        let runtime_files: RuntimeFiles = client
             .get(runtime_url)
             .send()
             .await?
@@ -51,29 +51,38 @@ impl RuntimeDownloader {
         let runtime_path =
             minecraft_root.join(format!("runtime/{}/{}/{}", self.runtime, os, self.runtime));
 
-         let executables_files: Vec<FileRelPath> = y
-             .files
-             .iter()
-             .filter(|(_, item)| item.executable)
-             .map(|(s, _)| runtime_path.join(s))
-             .collect();
-
+        let executables_files: Box<[FileRelPath]> = runtime_files
+            .files
+            .iter()
+            .filter(|(_, item)| item.executable)
+            .map(|(s, _)| runtime_path.join(s))
+            .collect();
 
         #[cfg(target_os = "linux")]
         {
             use std::os::unix::fs::PermissionsExt;
             executables_files
                 .iter()
-                .flat_map(|p| fs::metadata(p))
-                .for_each(|metadata| metadata.permissions().set_mode(0o766));
+                .flat_map(fs::metadata)
+                .for_each(|metadata| {
+                    metadata
+                        .permissions()
+                        .set_mode(0o766)
+                });
         }
 
-        let objects: Vec<DownloadableObject> = y
+        let objects: Vec<DownloadableObject> = runtime_files
             .files
             .into_iter()
-            .filter(|(_, s)| &s.file_type == "file")
-            .map(|(k, s)| (runtime_path.join(k), s.downloads["raw"].url.clone()))
-            .map(|(k, s)| DownloadableObject::new(&s, &k, None))
+            .filter(|(_, s)| s.file_type == "file")
+            .map(|(k, mut s)| {
+                let raw = s
+                    .downloads
+                    .remove("raw")
+                    .unwrap();
+                (runtime_path.join(k), raw.url, raw.sha1)
+            })
+            .map(|(k, s, h)| DownloadableObject::new(&s, &k, Some(HashType::Sha1(h.to_string()))))
             .collect();
 
         let mut downloader = Downloader::new(objects);

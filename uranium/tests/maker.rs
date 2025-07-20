@@ -9,7 +9,6 @@ async fn make() {
 
     if let Err(e) = make_modpack("tests/data/minecraft_test1/", &pack_name).await {
         panic!("Something went wrong when making the modpack {e}");
-        
     }
     assert!(std::fs::exists(&pack_name).unwrap());
     std::fs::remove_file(&pack_name).unwrap();
