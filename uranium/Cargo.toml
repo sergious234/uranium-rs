@@ -14,7 +14,7 @@ repository = "https://github.com/sergious234/uranium-rs"
 serde.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
-mine_data_structs = {path = "../mine_data_structs"}
+mine_data_structs = {path = "../mine_data_structs", version="1.0.6"}
 derive_more = {version = "1.0.0", features = ["display"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 futures = "0.3.3"
@@ -22,7 +22,7 @@ sha1 = "0.10.5"
 hex = "0.4.3"
 zip = "2.1.5"
 fs_extra = "1.3.0"
-murmurhash32 = {git = "https://github.com/gorilla-devs/murmurhash32.git"} 
+murmurhash32 = {git = "https://github.com/gorilla-devs/murmurhash32.git", version="0.2.0"} 
 chrono = "0.4.38"
 bytes = "1.6.1"
 thiserror = "1.0.40"
