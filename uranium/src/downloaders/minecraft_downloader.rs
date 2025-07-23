@@ -2,19 +2,18 @@ use std::io::Write;
 use std::{
     fs::File,
     path::{Path, PathBuf},
-    sync::RwLock,
 };
 
-use log::{error, info, warn};
+use log::{error, info};
 use mine_data_structs::minecraft::{
-    Library, MinecraftVersions, ObjectData, Profile, ProfilesJson, Resources, Root,
+    Library, MinecraftVersions, Profile, ProfilesJson, Resources, Root,
 };
 use reqwest;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 
-use super::RuntimeDownloader;
 use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader, HashType};
+use super::RuntimeDownloader;
 use crate::{
     code_functions::N_THREADS,
     error::{Result, UraniumError},
@@ -399,6 +398,8 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             .join("versions")
             .join(&self.minecraft_instance.id);
 
+        info!("Instance folder: {instance_folder:?}");
+
         if !instance_folder.exists() {
             std::fs::create_dir_all(&instance_folder)?;
         }
@@ -414,8 +415,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
 
     async fn check_client(&mut self, instance_folder: &Path) -> Result<()> {
         let client_path = instance_folder
-            .join(&self.minecraft_instance.id)
-            .with_extension("jar");
+            .join(self.minecraft_instance.id.clone() + ".jar");
         if !client_path.exists() {
             info!("Downloading client!");
             let (url, hash) = self
@@ -438,8 +438,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
 
     fn check_instance(&self, instance_folder: &Path) -> Result<()> {
         let instance_path = instance_folder
-            .join(&self.minecraft_instance.id)
-            .with_extension("json");
+            .join(self.minecraft_instance.id.clone() + ".json");
         if !instance_path.exists() {
             info!("Writing client json!");
             let mut instance_file = File::create(instance_path)?;
@@ -735,6 +734,7 @@ mod tests {
     use super::*;
     use crate::downloaders::Downloader;
     use crate::error::Result;
+    use crate::init_logger;
 
     #[tokio::test(flavor = "multi_thread")]
     pub async fn download_minecraft() -> Result<()> {
@@ -742,6 +742,7 @@ mod tests {
             MinecraftDownloader::<Downloader>::init("/home/sergio/.minecraft", "1.20.1").await?;
 
         let mut stdout = tokio::io::stdout();
+        let _ = init_logger();
         let r = loop {
             let state = if let Ok(x) = downloader.progress().await {
                 x
