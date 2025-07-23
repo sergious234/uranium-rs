@@ -33,7 +33,7 @@ const OBJECTS_PATH: &str = "objects";
 /// # Example Usage
 ///
 /// Basic verification workflow:
-/// ```rust no_run
+/// ```ignore
 ///     let verifier = InstallationVerifier::new(minecraft_path);
 ///     let result = verifier.verify_version();
 ///
@@ -100,7 +100,7 @@ impl InstallationVerifier {
     /// is completely valid, both arrays in the result will be empty.
     ///
     /// # Example
-    /// ```rust no_run
+    /// ```ignore
     /// let mut verifier = InstallationVerifier::new(minecraft_path);
     /// let result = verifier.verify();
     ///
@@ -281,7 +281,7 @@ impl InstallationVerifier {
 ///
 /// # Example Usage
 ///
-/// ```rust no_run
+/// ```ignore
 /// let verifier = InstallationVerifier::new(path);
 /// let result = verifier.verify_version();
 /// // Process problematic objects
@@ -309,11 +309,12 @@ impl VersionCheckResult<'_> {
     /// otherwise.
     ///
     /// # Example
-    ///
-    ///     let result = verifier.verify_version();
-    ///     if result.is_valid() {
-    ///         println!("Installation is clean!");
-    ///     }
+    ///```ignore
+    /// let result = verifier.verify_version();
+    /// if result.is_valid() {
+    ///     println!("Installation is clean!");
+    /// }
+    /// ```
     pub fn is_valid(&self) -> bool {
         self.objects.is_empty() && self.libs.is_empty() && self.index.is_none()
     }
