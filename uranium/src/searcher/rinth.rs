@@ -150,7 +150,7 @@ impl<T> SearchBuilder<T> {
     ///
     /// # Example
     ///
-    /// ```rust no_run
+    /// ```no_run
     /// use uranium_rs::searcher::rinth::{SearchType, SearchBuilder};
     /// let builder = SearchBuilder::new()
     ///     .search_type(SearchType::ProjectVersion {id: "example_id".to_string()})
