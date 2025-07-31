@@ -692,6 +692,14 @@ impl RinthMdFiles {
     pub fn get_path(&self) -> &Path {
         &self.path
     }
+
+    pub fn get_sha1(&self) -> &str {
+        &self.hashes.sha1
+    }
+
+    pub fn get_sha512(&self) -> &str {
+        &self.hashes.sha512
+    }
 }
 
 /// Represents a version file in the Modrinth API.
