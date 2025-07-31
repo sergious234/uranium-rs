@@ -12,8 +12,8 @@
 //! Also, `uranium` provides high modularity level when it comes to downloaders.
 //! Through the [`FileDownloader`](downloaders) trait.
 //!
-//! When using downloaders such as [`RinthDownloader`](RinthDownloader) it takes
-//! a generic parameter `T: FileDownloader` so **YOU** the user can implement
+//! When using downloaders such as [`RinthDownloader`] it takes
+//! a generic parameter `T: FileDownloader`, so **YOU** the user can implement
 //! your own downloader if you dislike mine :( or thinks you can do a faster
 //! one.
 //!
