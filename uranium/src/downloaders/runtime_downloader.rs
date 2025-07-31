@@ -1,7 +1,7 @@
 use std::fs;
 
-use mine_data_structs::minecraft::{FileRelPath, RUNTIMES_URL};
-use mine_data_structs::minecraft::{RuntimeFiles, Runtimes, get_minecraft_path};
+use mine_data_structs::minecraft::RUNTIMES_URL;
+use mine_data_structs::minecraft::{get_minecraft_path, RuntimeFiles, Runtimes};
 use reqwest::Client;
 
 use super::DownloadableObject;
@@ -51,18 +51,16 @@ impl RuntimeDownloader {
         let runtime_path =
             minecraft_root.join(format!("runtime/{}/{}/{}", self.runtime, os, self.runtime));
 
-        let executables_files: Box<[FileRelPath]> = runtime_files
+        let executables_files = runtime_files
             .files
             .iter()
             .filter(|(_, item)| item.executable)
-            .map(|(s, _)| runtime_path.join(s))
-            .collect();
+            .map(|(s, _)| runtime_path.join(s));
 
         #[cfg(target_os = "linux")]
         {
             use std::os::unix::fs::PermissionsExt;
             executables_files
-                .iter()
                 .flat_map(fs::metadata)
                 .for_each(|metadata| {
                     metadata
