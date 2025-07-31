@@ -14,3 +14,4 @@ repository = "https://github.com/sergious234/uranium-rs"
 dirs = "5.0.1"
 serde = { version = "1.0.183", features = ["derive"] }
 serde_json = { version = "1.0.139", default-features = false, features = ["alloc", "std"] }
+indexmap = {version="2.10.0", features=["serde", "rayon"]}
