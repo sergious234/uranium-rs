@@ -5,6 +5,7 @@ use log::error;
 use crate::error::{Result, UraniumError};
 use crate::variables::constants::TEMP_DIR;
 
+#[allow(dead_code)]
 pub fn overrides(destination_path: &Path, overrides_folder: &str) -> Result<()> {
     // Copy all the content of overrides into the minecraft root folder
     let options = fs_extra::dir::CopyOptions::new();
