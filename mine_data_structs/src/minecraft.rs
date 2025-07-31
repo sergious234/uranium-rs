@@ -26,6 +26,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 const BASE: &str = "https://resources.download.minecraft.net/";
@@ -101,7 +102,7 @@ pub struct DownloadData {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Resources {
-    pub objects: HashMap<String, ObjectData>,
+    pub objects: IndexMap<String, ObjectData>,
 }
 
 /*
@@ -175,18 +176,7 @@ impl MinecraftVersions {
             .unwrap()
             .url
     }
-}
 
-/// Both: release and snapshot latest versions of minecraft.
-///
-/// From launchermeta.mojang.com
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Latest {
-    pub release: String,
-    pub snapshot: String,
-}
-
-impl MinecraftVersions {
     /// Returns the url which correspond to the given version. In case the
     /// version doesn't exist `None` will be returned.
     ///
@@ -199,6 +189,15 @@ impl MinecraftVersions {
         }
         None
     }
+}
+
+/// Both: release and snapshot latest versions of minecraft.
+///
+/// From launchermeta.mojang.com
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Latest {
+    pub release: String,
+    pub snapshot: String,
 }
 
 /// A Library from a piston-meta version.
