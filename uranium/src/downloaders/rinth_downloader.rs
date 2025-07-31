@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use log::info;
-use mine_data_structs::rinth::{RinthMdFiles, RinthModpack, load_rinth_pack};
+use mine_data_structs::rinth::{load_rinth_pack, RinthModpack};
 
 use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader};
 use crate::zipper::pack_unzipper::remove_temp_pack;
@@ -32,16 +32,13 @@ pub struct RinthDownloader<T: FileDownloader> {
     modpack: RinthModpack,
 }
 
-type Links = Vec<String>;
-type Names = Vec<PathBuf>;
-
 impl<T: FileDownloader> RinthDownloader<T> {
     /// Create a new `RinthDownloader` with the given `modpack_path` and
     /// `destination`.
     ///
     /// # Example
     /// ```no_run
-    /// 
+    ///
     /// use uranium_rs::downloaders::{RinthDownloader, Downloader};
     /// use uranium_rs::error::Result;
     ///
@@ -66,7 +63,6 @@ impl<T: FileDownloader> RinthDownloader<T> {
     /// created.
     pub fn new<I: AsRef<Path>, J: AsRef<Path>>(modpack_path: I, destination: J) -> Result<Self> {
         let modpack = Self::load_pack(modpack_path)?;
-        let (links, names) = Self::get_data(&modpack);
 
         let destination = destination.as_ref();
 
@@ -74,20 +70,29 @@ impl<T: FileDownloader> RinthDownloader<T> {
         Self::check_rp_dir(destination)?;
         Self::check_config_dir(destination)?;
 
-        let files = links
+        let objs = modpack
+            .files
             .iter()
-            .zip(names.iter())
-            .map(|(url, name)| DownloadableObject::new(url, &destination.join(name), None))
-            .collect();
+            .map(|file| {
+                DownloadableObject::new(
+                    file.get_download_link(),
+                    &destination.join(file.get_path()),
+                    None,
+                )
+            });
+
+        let mut downloader = T::new(vec![]);
+        downloader.add_objects(objs);
 
         Ok(RinthDownloader {
-            gen_downloader: T::new(files),
+            gen_downloader: downloader,
             modpack,
         })
     }
 
     /// Returns the number of mods to download.
     #[must_use]
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.gen_downloader.len()
     }
@@ -134,30 +139,6 @@ impl<T: FileDownloader> RinthDownloader<T> {
             .to_str()
             .unwrap_or_default()
             .to_string()
-    }
-
-    fn get_data(rinth_pack: &RinthModpack) -> (Links, Names) {
-        let file_links: Vec<String> = rinth_pack
-            .get_files()
-            .iter()
-            .map(RinthMdFiles::get_download_link)
-            .map(str::to_owned)
-            .collect();
-
-        info!("Downloading {} files", file_links.len());
-
-        let file_names: Vec<PathBuf> = rinth_pack
-            .get_files()
-            .iter()
-            .map(RinthMdFiles::get_path)
-            .map(Path::to_owned)
-            .collect();
-
-        for name in &file_names {
-            info!("{}", name.display());
-        }
-
-        (file_links, file_names)
     }
 
     fn load_pack<I: AsRef<Path>>(path: I) -> Result<RinthModpack> {
