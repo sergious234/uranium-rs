@@ -20,16 +20,6 @@ const OBJECTS_PATH: &str = "objects";
 /// for performing comprehensive verification operations on Minecraft
 /// installations.
 ///
-/// The verifier maintains ownership of all data structures required for
-/// verification, ensuring that verification results can safely reference
-/// this data through lifetimes without risk of dangling pointers.
-///
-/// # Fields
-///
-/// * `minecraft_path` - Path to the Minecraft installation directory
-/// * `minecraft_instance` - Root configuration of the Minecraft instance
-/// * `resources` - Game resources including libraries and objects
-///
 /// # Example Usage
 ///
 /// Basic verification workflow:
@@ -40,7 +30,7 @@ const OBJECTS_PATH: &str = "objects";
 ///     if result.is_valid() {
 ///         println!("Installation is valid!");
 ///     } else {
-///         println!("Found problems: {}", result.summary());
+///         println!("Found problems: {}", result.total_problems());
 ///     }
 /// ```
 pub struct InstallationVerifier {
@@ -191,11 +181,26 @@ impl InstallationVerifier {
         if !index_path.exists() {
             return Some(index);
         }
+        use std::fs;
+        let data = fs::read_to_string(&index_path)
+            .ok()?
+            .replace(":", ": ")
+            .replace(",", ", ");
 
-        if let Ok(false) = verify_file_hash(&index_path, &index.sha1) {
-            error!("Wrong hash for {:?}, {}", &index_path, &index.sha1);
+        use sha1::{Digest, Sha1};
+        let mut hasher = Sha1::new();
+        hasher.update(data.as_bytes());
+
+        let h = format!("{:x}", hasher.finalize());
+        if index.sha1 != h {
+            error!("Wrong hash for {:?}, {}-{}", &index_path, &index.sha1, h);
             return Some(index);
         }
+
+        //if let Ok(false) = verify_file_hash(&index_path, &index.sha1) {
+        //    error!("Wrong hash for {:?}, {}", &index_path, &index.sha1);
+        //    return Some(index);
+        //}
         None
     }
 
