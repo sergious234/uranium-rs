@@ -105,17 +105,6 @@ pub async fn get_last_release() -> Result<String> {
 */
 
 /// Indicates the download state of a Minecraft instance.
-#[derive(Debug)]
-pub enum InnerMinecraftDownloadState {
-    GettingSources,
-    DownloadingIndexes(Vec<DownloadableObject>),
-    DownloadingAssests,
-    DownloadingLibraries,
-    CheckingFiles,
-    Completed,
-}
-
-/// Indicates the download state of a Minecraft instance.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum MinecraftDownloadState {
     GettingSources,
@@ -273,10 +262,13 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     pub async fn progress(&mut self) -> Result<MinecraftDownloadState> {
         match self.download_state {
             MinecraftDownloadState::GettingSources => {
-                let files = self.get_sources().await?;
+                let files: Box<[DownloadableObject]> = self
+                    .get_sources()
+                    .await?
+                    .collect();
 
                 if self
-                    .create_assests_folders(&files)
+                    .create_assests_folders(files.iter())
                     .is_err()
                 {
                     error!("Error creating assets folders");
@@ -302,15 +294,14 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
 
                 match download_state {
                     Ok(DownloadState::Completed) => {
-                        let files = self.prepare_libraries()?;
+                        let files: Box<[_]> = self
+                            .prepare_libraries()?
+                            .collect();
                         self.downloader
                             .add_objects(files);
                         self.download_state = MinecraftDownloadState::DownloadingLibraries;
                     }
                     Err(e) => {
-                        if let UraniumError::WriteError(io_err) = &e {
-                            error!("Io error: {io_err}");
-                        }
                         error!("Error downloading assets: {e}");
                         return Err(e);
                     }
@@ -329,9 +320,6 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
                         self.download_state = MinecraftDownloadState::DownloadingRuntime;
                     }
                     Err(e) => {
-                        if let UraniumError::WriteError(io_err) = &e {
-                            error!("Io error: {io_err}");
-                        }
                         error!("Error downloading assets: {e}");
                         return Err(e);
                     }
@@ -357,7 +345,6 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
 
             MinecraftDownloadState::CheckingFiles => {
                 self.download_state = MinecraftDownloadState::Completed;
-                // self.fix_wrong_file().await?;
             }
 
             MinecraftDownloadState::Completed => {
@@ -381,18 +368,6 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     ///
     /// Returns `Ok(())` on successful completion of all operations.
     async fn create_version_folder(&mut self) -> Result<()> {
-        /*
-            Write inside .minecraft the client and version manual
-
-            .minecraft
-                | ...
-                |
-                | versions
-                    | X.XX.X            < Write this
-                        | X.XX.X.jar    < And this
-                        | X.XX.X.json   < And despite what everyone might think, this too
-
-        */
         let instance_folder = self
             .dot_minecraft_path
             .join("versions")
@@ -413,9 +388,14 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         Ok(())
     }
 
+    /// Checks versions/version/version.jar file.
     async fn check_client(&mut self, instance_folder: &Path) -> Result<()> {
-        let client_path = instance_folder
-            .join(self.minecraft_instance.id.clone() + ".jar");
+        let client_path = instance_folder.join(
+            self.minecraft_instance
+                .id
+                .clone()
+                + ".jar",
+        );
         if !client_path.exists() {
             info!("Downloading client!");
             let (url, hash) = self
@@ -437,8 +417,12 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     }
 
     fn check_instance(&self, instance_folder: &Path) -> Result<()> {
-        let instance_path = instance_folder
-            .join(self.minecraft_instance.id.clone() + ".json");
+        let instance_path = instance_folder.join(
+            self.minecraft_instance
+                .id
+                .clone()
+                + ".json",
+        );
         if !instance_path.exists() {
             info!("Writing client json!");
             let mut instance_file = File::create(instance_path)?;
@@ -490,7 +474,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         (n / N_THREADS() as f64).ceil() as usize
     }
 
-    async fn get_sources(&mut self) -> Result<Box<[DownloadableObject]>> {
+    async fn get_sources(&self) -> Result<impl Iterator<Item = DownloadableObject>> {
         let resources: Resources = self
             .requester
             .get(
@@ -510,43 +494,42 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         )
         .await
         .map_err(|err| {
-            error!("Cant create assets/indexes");
-            UraniumError::OtherWithReason(format!("assets/indexes: [{err}]"))
+            error!("Cant create assets/indexes: [{err}]");
+            UraniumError::CantCreateDir("assets/indexes")
         })?;
 
-        if tokio::fs::create_dir_all(
+        tokio::fs::create_dir_all(
             self.dot_minecraft_path
                 .join("assets/objects"),
         )
         .await
-        .is_err()
-        {
-            error!("Cant create assets/objects");
-            return Err(UraniumError::CantCreateDir("assets/objects"));
-        }
+        .map_err(|err| {
+            error!("Cant create assets/objects: [{err}]");
+            UraniumError::CantCreateDir("assets/objects")
+        })?;
 
         self.create_indexes(&resources)
             .await?;
 
         let base = PathBuf::from(ASSETS_PATH).join(OBJECTS_PATH);
 
-        let mut files = vec![];
-
-        for obj in resources.objects.values() {
-            let url = obj.get_link();
-            let path = base
-                .join(&obj.hash[..2])
-                .join(&obj.hash);
-            files.push(DownloadableObject::new(
-                &url,
-                &self
-                    .dot_minecraft_path
-                    .join(path),
-                Some(HashType::Sha1(obj.hash.to_owned())),
-            ));
-        }
-
-        Ok(Box::from(files))
+        let x = resources
+            .objects
+            .into_values()
+            .map(move |obj| {
+                let url = obj.get_link();
+                let path = base
+                    .join(&obj.hash[..2])
+                    .join(&obj.hash);
+                DownloadableObject::new(
+                    &url,
+                    &self
+                        .dot_minecraft_path
+                        .join(path),
+                    Some(HashType::Sha1(obj.hash.to_owned())),
+                )
+            });
+        Ok(x)
     }
 
     /// Makes the minecraft index.json file
@@ -574,12 +557,15 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     }
 
     /// When success all the assets folder are created
-    fn create_assests_folders(&self, names: &[DownloadableObject]) -> Result<()> {
-        for p in names {
+    fn create_assests_folders<'a>(
+        &self,
+        names: impl Iterator<Item = &'a DownloadableObject>,
+    ) -> Result<()> {
+        for dir in names {
             std::fs::create_dir_all(
                 self.dot_minecraft_path
                     .join(
-                        p.name()
+                        dir.name()
                             .ok_or(UraniumError::other("No filename"))?,
                     )
                     .parent()
@@ -592,9 +578,9 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
 
     // WIP
     #[allow(dead_code)]
-    /// Return a `Vec<String>` with the urls of the libraries for the current.
+    /// Return a `impl Iterator<Item = DownloadableObject>` with the urls of the libraries for the current.
     /// If the lib has no specified Os then it will be inside the vector too.
-    fn get_os_libraries(&self, libraries: &[Library]) -> Vec<DownloadableObject> {
+    fn get_os_libraries(&self, libraries: &[Library]) -> impl Iterator<Item = DownloadableObject> {
         let lib_path = self
             .dot_minecraft_path
             .join("libraries");
@@ -605,21 +591,19 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             // "windows" => mine_data_structs::minecraft::Os::Windows,
             _ => mine_data_structs::minecraft::Os::Windows,
         };
-
         libraries
             .iter()
-            .filter(|lib| {
+            .filter(move |lib| {
                 lib.get_os()
                     .is_none_or(|os| os == current_os)
             })
-            .map(|lib| {
+            .map(move |lib| {
                 DownloadableObject::new(
                     lib.get_url(),
                     &lib_path.join(lib.get_rel_path().unwrap()),
                     None,
                 )
             })
-            .collect()
     }
 
     /// This function processes the minecraft instance libraries and creates a
@@ -628,10 +612,10 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     ///
     /// # Returns
     ///
-    /// A `Result` containing a `Vec<DownloadableObject>` with all the library
+    /// A `Result` containing a `impl Iterator<Item = DownloadableObject>` with all the library
     /// files that need to be downloaded, or an error if the operation
     /// fails.
-    fn prepare_libraries(&self) -> Result<Box<[DownloadableObject]>> {
+    fn prepare_libraries(&self) -> Result<impl Iterator<Item = DownloadableObject>> {
         let lib_path = self
             .dot_minecraft_path
             .join("libraries");
@@ -639,9 +623,8 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         Ok(self
             .minecraft_instance
             .libraries
-            .as_ref()
             .iter()
-            .map(|l| {
+            .map(move |l| {
                 DownloadableObject::new(
                     l.get_url(),
                     &lib_path.join(
@@ -651,8 +634,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
                     l.get_hash()
                         .map(|h| HashType::Sha1(h.to_string())),
                 )
-            })
-            .collect::<Box<[DownloadableObject]>>())
+            }))
     }
 
     /// This function will add a new minecraft profile to
@@ -688,12 +670,6 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
                     .to_string(),
             ));
         }
-
-        // let Ok(mut profiles): std::result::Result<ProfilesJson, _> =
-        //     serde_json::from_reader(File::open(&profiles_path)?)
-        // else {
-        //     return Err(UraniumError::OtherWithReason("Cant deserialize
-        // profile file".to_owned())); };
 
         let mut profiles: ProfilesJson = match serde_json::from_reader(File::open(&profiles_path)?)
         {
