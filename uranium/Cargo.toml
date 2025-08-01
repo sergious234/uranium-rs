@@ -14,7 +14,7 @@ repository = "https://github.com/sergious234/uranium-rs"
 serde.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
-mine_data_structs = {path = "../mine_data_structs", version="1.0.6"}
+mine_data_structs = {path = "../mine_data_structs", version = "1.0.7" }
 derive_more = {version = "1.0.0", features = ["display"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 futures = "0.3.3"
