@@ -1,6 +1,6 @@
 [package]
 name = "uranium-rs"
-version = "1.0.2"
+version = "1.0.3"
 authors = ["sergious234 <sergious23@gmail.com>"]
 edition = "2024"
 description = "Lib for downloading/making minecraft and modpacks"
