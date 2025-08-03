@@ -7,6 +7,7 @@ description = "Lib for downloading/making minecraft and modpacks"
 license = "GPL-2.0"
 keywords = ["minecraft"]
 repository = "https://github.com/sergious234/uranium-rs"
+exclude = ["./tests/data/*"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
