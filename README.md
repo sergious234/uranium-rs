@@ -1,88 +1,55 @@
 # 🛠️ Uranium
-uranium-rs: 
-[![Crates.io](https://img.shields.io/crates/v/uranium-rs.svg)](https://crates.io/crates/uranium-rs)
 
-mine_data_structs: 
-[![Crates.io](https://img.shields.io/crates/v/mine_data_structs.svg)](https://crates.io/crates/mine_data_structs)
+<img src="./UraniumLogo.png" width=300>
 
-**Uranium** is a Rust library for downloading Minecraft game files and Modrinth
-mods or modpacks. It provides a complete toolkit for building Minecraft
-launchers without having to implement the download logic from scratch.
+[API Docs](https://img.shields.io/crates/v/uranium-rs.svg)
 
-## Features
 
-- **Generic, asynchronous downloader** - Fast and efficient file downloading
-- **Trait-based system** - Plug in your own downloader implementation
-- **Minecraft file management** - Download game files for any version
-- **ModRinth support** - Download modpacks from ModRinth
-- **CurseForge support** - Download modpacks from CurseForge (experimental)
-- **Profile integration** - Read and write Minecraft launcher profiles
+**Uranium** is a Rust library for downloading Minecraft game files and Modrinth mods or modpacks. It provides:
 
-This crate is designed for developers who want to create their own Minecraft
-launcher but don't want to write all the downloading and file management logic
-from scratch. Uranium provides an easy way to download Minecraft files and
-modpacks while remaining interoperable with the default Minecraft launcher and
-other launchers.
+- A generic, asynchronous downloader
+- A trait-based system so users can plug in their own downloader implementation
 
-## Quick Start
+This crate is made for users who want to make their own minecraft launcher but
+dont want to write all the process from scratch. Uranium provides an easy way
+to download the minecraft files and also modpacks from ModRinth (Curse is in
+progress). Uranium also has functions to interact with the default minecraft
+launcher profiles, so you can read already existing profiles and add new ones
+(it is interoperable with other launchers).
 
-### Downloading Minecraft
+# How to download minecraft ?
+
+It's that simple:
 
 ```rust
 let mut downloader = MinecraftDownloader::<Downloader>::init("/home/user/.minecraft", "1.20.1").await?;
 downloader.start().await;
 ```
 
-### Downloading ModRinth Modpacks
+# FileDownloader trait
 
-```rust
-let downloader = RinthDownloader::<Downloader>::new("path/to/modpack", "installation/path")?;
-```
+Uranium's FileDownloader trait enables users to implement custom downloaders to
+their needs. If you feel the **Downloader** Uranium provides is slow or it doesn't
+satisfy your need go and write your own !
 
-### Downloading CurseForge Modpacks (Experimental)
-
-```rust
-let downloader = CurseDownloader::<Downloader>::new("path/to/modpack", "installation/path").await;
-```
-
-## Custom Downloaders
-
-Uranium's `FileDownloader` trait enables you to implement custom downloaders
-tailored to your needs. If the built-in `Downloader` doesn't meet your
-requirements, you can write your own:
-
+Then change the generic parameter like this and you'll be using your own downloder:
 ```rust
 let mut downloader = MinecraftDownloader::<MyDownloader>::init("/home/user/.minecraft", "1.20.1").await?;
 downloader.start().await;
 ```
 
-## Project Structure
+# Rinth
 
-This project consists of multiple submodules:
+**Uranium** also can download modpacks with the modrith format with `RinthDownloader`.
 
-- **`uranium-rs`** - The main library containing all downloading and file management functionality
-- **`mine_data_structs`** - Supporting crate containing data structures used by uranium-rs
-
-## Status
-
-- ✅ **Minecraft downloading** - Stable and fully functional
-- ✅ **ModRinth support** - Stable and fully functional  
-- ⚠️ **CurseForge support** - Under development, experimental
-- ✅ **Profile management** - Stable and fully functional
-
-## Installation
-
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-uranium-rs = "0.1.0"  # Replace with actual version
+``` rust
+RinthDownloader::<Downloader>::new("path/to/modpack", "installation/path")?;
 ```
 
-## Documentation
+# Curse
 
-[API Documentation](https://docs.rs/uranium-rs) 
-
-## Contributing
-
-This project was created for personal use, but contributions are welcome if you find it useful.
+Curse is under developing right now, it has a specific downloader but with no guarantees.
+Same API as Rinth:
+```rust
+CurseDownloader::<Downloader>::new("path/to/modpack", "installation/path").await;
+```

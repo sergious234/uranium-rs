@@ -100,7 +100,7 @@ impl InstallationVerifier {
     ///     println!("Verification failed: {}", result.summary());
     /// }
     /// ```
-    pub fn verify(&self) -> VersionCheckResult {
+    pub fn verify(&self) -> VersionCheckResult<'_> {
         let libs = self.verify_libs();
         let objects = self.verify_objects();
         let index = self.very_index();

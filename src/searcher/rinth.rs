@@ -17,6 +17,8 @@ pub enum SearchType {
     MultiProject { ids: Vec<&'static str> },
     /// /version_file/{hash}
     VersionFile { hash: String },
+    /// /version_files
+    VersionFiles,
     /// /project/{id|slug}/dependencies
     Dependencies { id: String },
     /// /tag/category
@@ -237,6 +239,7 @@ impl SearchBuilder<SearchType> {
             }
             SearchType::Search => "search?",
             SearchType::VersionFile { hash } => &format!("version_file/{hash}"),
+            SearchType::VersionFiles => &format!("version_files"),
             SearchType::Dependencies { .. } => todo!(),
 
             // If SearchType is Categories or Loaders there is no need to apply

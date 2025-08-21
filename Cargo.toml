@@ -1,17 +1,51 @@
-[workspace.dependencies]
-serde = { version = "1.0.183", features = ["derive"] }
-reqwest = { version = "0.12.22", features = ["json", "stream"] }
-tokio = { version = "1.46.1", features = ["full"] }
-
-[workspace]
-resolver = "3"
-members = ["uranium", "mine_data_structs"]
+[package]
+name = "uranium-rs"
+version = "1.0.3"
+authors = ["sergious234 <sergious23@gmail.com>"]
+edition = "2024"
+description = "Lib for downloading/making minecraft and modpacks"
+license = "GPL-2.0"
+keywords = ["minecraft"]
+repository = "https://github.com/sergious234/uranium-rs"
+exclude = ["/tests/data/*"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[profile.dev]
-opt-level = 0
-overflow-checks = false
-debug = 2
-incremental = true
-debug-assertions = true
+[dependencies]
+serde = { version = "1.0.183", features = ["derive"] }
+reqwest = { version = "0.12.22", features = ["json", "stream"] }
+tokio = { version = "1.46.1", features = ["full"] }
+derive_more = {version = "1.0.0", features = ["display"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+futures = "0.3.3"
+mine_data_structs = "1.0.8"
+sha1 = "0.10.5"
+hex = "0.4.3"
+zip = "2.1.5"
+fs_extra = "1.3.0"
+murmurhash32 = {git = "https://github.com/gorilla-devs/murmurhash32.git", version="0.2.0"} 
+chrono = "0.4.38"
+bytes = "1.6.1"
+thiserror = "1.0.40"
+simplelog = "0.12.1"
+log = { version = "0.4.19", features = ["std"] }
+rayon = "1.10.0"
+dirs = "5.0.1"
+walkdir = "2.5.0"
+
+
+[[test]]
+name = "maker"
+path = "tests/maker.rs"
+
+[[test]]
+name = "rinth_downloader"
+path = "tests/rinth_downloader.rs"
+
+[[test]]
+name = "runtime"
+path = "tests/runtime_downloader.rs"
+
+[[test]]
+name = "installation_verification"
+path = "tests/installation_verification.rs"

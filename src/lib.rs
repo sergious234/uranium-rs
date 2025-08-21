@@ -70,10 +70,9 @@ pub async fn make_modpack<I: AsRef<Path>, J: AsRef<Path>>(
     modpack_name: J,
 ) -> Result<()> {
     let mut maker = ModpackMaker::new(&minecraft_path, modpack_name);
-    maker.start()?;
     let mut i = 0;
     loop {
-        match maker.chunk().await {
+        match maker.progress().await {
             Ok(State::Finish) => return Ok(()),
             Err(e) => return Err(e),
             _ => {
