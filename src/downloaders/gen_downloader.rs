@@ -1,27 +1,26 @@
-use std::fs::create_dir_all;
 use std::sync::Arc;
+use std::fs::create_dir_all;
 use std::{
     collections::VecDeque,
     path::{Path, PathBuf},
 };
 
-use futures::{future::join_all, StreamExt};
+use futures_util::future::join_all;
+use futures_util::StreamExt;
 use log::{error, info};
 use reqwest::Response;
-use sha1::Digest;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::{io::AsyncWriteExt, task::JoinHandle};
+use sha1::Digest;
 
 use crate::error::Result;
+use crate::hashes::bytes_to_hex;
 use crate::{code_functions::N_THREADS, error::UraniumError};
 
-/// Download files asynchronously.
+/// A trait for asynchronous file downloading.
 ///
-/// This trait allows the user to make their own `FileDownloader` and use it
-/// with the different downloader such us:
-/// - `MinecraftDownloader`
-/// - `RinthDownloader`
-/// - `CurseDownloader`
+/// This trait provides a generic interface that allows different downloader implementations
+/// to be used interchangeably. This promotes a flexible and modular design.
 #[allow(async_fn_in_trait)]
 pub trait FileDownloader {
     /// Builds a new struct from a vec of `DownlodableObject`s.
@@ -161,11 +160,9 @@ impl DownloadableObject {
     }
 }
 
-/// Basic downloader
-///
-/// `Downloader` is a basic implementation of `FileDownloader` trait.
-///
-/// It uses `reqwest::Client` for the HTTP requests.
+/// A concrete implementation of `FileDownloader` that
+/// manages a pool of download tasks, ensuring that a limited number of
+/// requests are active at any time.
 pub struct Downloader {
     files: Vec<DownloadableObject>,
     requester: reqwest::Client,
@@ -395,7 +392,7 @@ async fn verify_file_hash(path: &Path, expected_hash: &Option<HashType>) -> Resu
     let content = tokio::fs::read(path).await?;
     let mut hasher = sha1::Sha1::new();
     hasher.update(&content);
-    let actual = hex::encode(hasher.finalize());
+    let actual = bytes_to_hex(&hasher.finalize());
 
     Ok(&actual == expected)
 }
@@ -451,7 +448,7 @@ async fn download_single_file(response: Response, obj: DownloadableObject) -> Re
         hasher.update(chunk);
     }
     file.flush().await?;
-    let actual = hex::encode(hasher.finalize());
+    let actual = bytes_to_hex(&hasher.finalize());
 
     if total == content_length
         && obj

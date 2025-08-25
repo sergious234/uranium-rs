@@ -4,13 +4,13 @@ use std::{
 };
 
 use mine_data_structs::rinth::RinthVersion;
-use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
 use crate::hashes::rinth_hash;
-use crate::searcher::rinth::{SearchBuilder, SearchType};
+use rrhodium::{SearchType, SearchBuilder};
+use miniserde::{Serialize};
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct Content {
     hashes: Vec<String>,
     algorithm: String,
@@ -58,11 +58,11 @@ async fn get_updates(mods_hashes: &[String]) -> Result<HashMap<String, RinthVers
     let client = reqwest::Client::new();
     let post_content = Content::new(mods_hashes.to_owned(), vec!["1.19.2".to_owned()]);
     let url = SearchBuilder::new()
-        .search_type(SearchType::VersionFile { hash: "".into() })
+        .search_type(SearchType::VersionFile { hash: "".into(), algo: rrhodium::HashingAlgo::Sha1 })
         .build_url();
     let response = client
         .post(&url)
-        .json(&post_content)
+        .json(&miniserde::json::to_string(&post_content))
         .send()
         .await?;
 

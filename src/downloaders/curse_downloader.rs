@@ -1,16 +1,15 @@
 use std::path::Path;
 
-use futures::future::join_all;
 use mine_data_structs::{curse::*, maker};
 use reqwest::Response;
+use futures_util::future::join_all;
 
 use super::{DownloadableObject, gen_downloader::DownloadState};
 use crate::{
     FileDownloader,
-    code_functions::N_THREADS,
+    code_functions::{N_THREADS, unzip_temp_pack},
     error::{Result, UraniumError},
     variables::constants::{CURSE_JSON, TEMP_DIR},
-    zipper::pack_unzipper::unzip_temp_pack,
 };
 
 /// This struct is responsible for downloading Curse modpacks.

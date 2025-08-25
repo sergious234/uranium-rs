@@ -1,39 +1,5 @@
-#![allow(unused)]
-use std::collections::HashMap;
-use std::fs::read_dir;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-
-use derive_more::Display;
-pub use maker::ModpackMaker;
-pub use maker::State;
-use mine_data_structs::minecraft::Profile;
-use mine_data_structs::rinth::{RinthModpack, RinthVersion, RinthVersionFile, RinthVersions};
-use reqwest::header::{CONTENT_TYPE, HeaderMap};
-use reqwest::{Body, ClientBuilder};
-use serde::{Deserialize, Serialize};
-use tokio::task::JoinHandle;
-use zip::ZipWriter;
-
-use crate::error::{Result, UraniumError};
-use crate::hashes::rinth_hash;
-use crate::searcher::rinth::{SearchBuilder, SearchType};
-
 mod maker;
-
-#[derive(Display)]
-pub enum ModLoaders {
-    #[display("forge")]
-    Forge,
-    #[display("fabric")]
-    Fabric,
-    #[display("quilt")]
-    Quilt,
-}
-
-#[cfg(test)]
-mod test {}
-
+pub use maker::{ModpackMaker, State};
 /*
 
     TODO:

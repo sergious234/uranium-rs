@@ -4,12 +4,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+
 use log::{error, info};
 use mine_data_structs::minecraft::{
     Library, MinecraftVersions, Profile, ProfilesJson, Resources, Root,
 };
 use reqwest;
-use serde::{Deserialize, Serialize};
+// use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 
 use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader, HashType};
@@ -105,7 +106,7 @@ pub async fn get_last_release() -> Result<String> {
 */
 
 /// Indicates the download state of a Minecraft instance.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone)]
 pub enum MinecraftDownloadState {
     GettingSources,
     DownloadingVersion,

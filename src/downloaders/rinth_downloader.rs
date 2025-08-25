@@ -4,12 +4,10 @@ use log::info;
 use mine_data_structs::rinth::{load_rinth_pack, RinthModpack};
 
 use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader};
-use crate::zipper::pack_unzipper::remove_temp_pack;
 use crate::{
-    code_functions::N_THREADS,
+    code_functions::{N_THREADS, remove_temp_pack, unzip_temp_pack},
     error::{Result, UraniumError},
     variables::constants::{RINTH_JSON, TEMP_DIR},
-    zipper::pack_unzipper::unzip_temp_pack,
 };
 
 /// This struct is responsible for downloading

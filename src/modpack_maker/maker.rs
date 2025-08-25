@@ -1,41 +1,19 @@
 use std::{
     collections::HashMap,
     fs::read_dir,
-    ops::Deref,
     path::{Path, PathBuf},
-    str::FromStr,
 };
 
-use futures::future::join_all;
-use log::{error, warn};
+use log::error;
 use mine_data_structs::rinth::{RinthModpack, RinthVersion};
-use rayon::{
-    iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator},
-    join,
-};
-use reqwest::{Body, Response};
-use serde::{Deserialize, Serialize};
-use serde_json::to_vec;
-use zip::write::FileOptions;
 
+use crate::variables::constants::OVERRIDES_FOLDER;
 use crate::{
-    code_functions::N_THREADS, error::Result, error::UraniumError, hashes::rinth_hash,
-    variables::constants, variables::constants::RINTH_JSON,
-};
-use crate::{
-    searcher::rinth::{SearchBuilder, SearchType},
-    variables::constants::OVERRIDES_FOLDER,
+    error::Result, error::UraniumError, hashes::rinth_hash,
+    variables::constants::RINTH_JSON,
 };
 
-type HashFilename = Vec<(String, String)>;
-
-/// Good -> Means Uranium found the mod
-/// Raw  -> Means the mod need to be added raw
-#[allow(clippy::large_enum_variant)]
-enum ParseState {
-    Good(RinthVersion),
-    Raw(String),
-}
+use rrhodium::{SearchBuilder, SearchType};
 
 #[derive(Clone, Copy)]
 pub enum State {
@@ -88,7 +66,6 @@ pub struct ModpackMaker {
     modpack_path: PathBuf,
     state: InnerState,
     client: reqwest::Client,
-    threads: usize,
 }
 
 impl ModpackMaker {
@@ -103,7 +80,6 @@ impl ModpackMaker {
             modpack_path: modpack_name
                 .as_ref()
                 .to_path_buf(),
-            threads: N_THREADS(),
         }
     }
 
@@ -190,10 +166,10 @@ impl ModpackMaker {
         };
 
         let hashes_names = mods.map(|path| {
-            (HashPath {
+            HashPath {
                 hash: rinth_hash(&path),
                 path: path.to_owned(),
-            })
+            }
         });
 
         Ok(hashes_names)

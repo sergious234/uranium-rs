@@ -1,5 +1,4 @@
 #![forbid(unsafe_code)]
-#![warn(clippy::all)]
 
 //! # uranium
 //!
@@ -49,13 +48,11 @@ use variables::constants::*;
 pub mod downloaders;
 pub mod error;
 pub mod modpack_maker;
-pub mod searcher;
 pub mod version_checker;
 
 mod code_functions;
 mod hashes;
 mod variables;
-mod zipper;
 
 /// # Easy to go function
 ///

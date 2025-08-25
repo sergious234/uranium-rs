@@ -1,3 +1,31 @@
+//! # Runtime Downloader
+//!
+//! This module is responsible for downloading the required Java runtimes
+//! for Minecraft instances. It interacts with Mojang's launcher metadata to
+//! find the correct runtime version based on the operating system and then
+//! downloads all associated files.
+//!
+//! This module ensures that the downloaded runtime files are correctly placed
+//! in the Minecraft root directory and that the executable files have the
+//! necessary permissions.
+//!
+//! ## Example
+//!
+//! Here's a basic example of how to use the `RuntimeDownloader` to download a runtime.
+//!
+//! ```no_run
+//! # use uranium_rs::downloaders::RuntimeDownloader;
+//! # use uranium_rs::error::Result;
+//! #
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let mut downloader = RuntimeDownloader::new("java-runtime-beta".to_string());
+//!     downloader.download().await?;
+//!     println!("Runtime downloaded and installed successfully!");
+//!     Ok(())
+//! }
+//! ```
+
 use std::fs;
 
 use mine_data_structs::minecraft::RUNTIMES_URL;
@@ -8,6 +36,7 @@ use super::DownloadableObject;
 use crate::downloaders::{Downloader, FileDownloader, HashType};
 use crate::error::{Result, UraniumError};
 
+/// A downloader specifically for Java runtimes.
 pub struct RuntimeDownloader {
     runtime: String,
 }
@@ -17,6 +46,15 @@ impl RuntimeDownloader {
         Self { runtime }
     }
 
+    /// Fetches the runtime manifest, downloads all required files, and sets
+    /// permissions for executables.
+    ///
+    /// # Errors
+    ///
+    /// This function can return a `UraniumError` if:
+    /// * There are issues with the network requests to Mojang's servers.
+    /// * The requested runtime is not found in the manifest.
+    /// * There are issues with creating directories or writing files to disk.
     pub async fn download(&mut self) -> Result<()> {
         let client = Client::new();
         let x = client
@@ -83,9 +121,6 @@ impl RuntimeDownloader {
             .map(|(k, s, h)| DownloadableObject::new(&s, &k, Some(HashType::Sha1(h.to_string()))))
             .collect();
 
-        let mut downloader = Downloader::new(objects);
-        downloader.complete().await?;
-
-        Ok(())
+        Downloader::new(objects).complete().await
     }
 }

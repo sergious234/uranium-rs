@@ -1,11 +1,20 @@
+use std::fmt::Write;
 use std::{fs, io::Read, path::Path};
 
-use hex::ToHex;
 use murmurhash32::murmurhash2;
 use sha1::{Digest, Sha1};
 
 // TODO:
 // Remove unwraps
+
+pub(crate) fn bytes_to_hex(bytes: &[u8]) -> String {
+    let mut hex_string = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(&mut hex_string, "{:02x}", byte).unwrap();
+    }
+    hex_string
+}
+
 
 fn get_sha1_from_file<I: AsRef<Path>>(file_path: I) -> String {
     let mut hasher = Sha1::new();
@@ -27,7 +36,7 @@ fn get_sha1_from_file<I: AsRef<Path>>(file_path: I) -> String {
 
     hasher.update(buffer);
     let temp = hasher.finalize().to_vec();
-    temp.encode_hex::<String>()
+    bytes_to_hex(&temp)
 }
 
 // This function is coded like shit, remember to check if file exists before
