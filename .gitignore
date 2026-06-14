@@ -1,5 +1,3 @@
-/target
-/Cargo.lock
-/.obsidian
-/.repro
-/.idea
+data/*
+target/*
+tests/*

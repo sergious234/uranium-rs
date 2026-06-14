@@ -16,7 +16,7 @@ exclude = ["tests/data/*"]
 reqwest = { version = "0.12.22", features = ["json", "stream"] }
 tokio = { version = "1.46.1", features = ["full"] }
 futures-util = "0.3.31"
-mine_data_structs = "1.0.8"
+mine_data_structs = {version = "1.0.9", features = ["serde"]}
 sha1 = "0.10.5"
 zip = "2.1.5"
 murmurhash32 = {git = "https://github.com/gorilla-devs/murmurhash32.git", version="0.2.0"} 
