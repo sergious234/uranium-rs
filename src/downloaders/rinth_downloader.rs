@@ -122,7 +122,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
             .gen_downloader
             .requests_left();
 
-        if left % N_THREADS() == 0 {
+        if left.is_multiple_of(N_THREADS()) {
             left / N_THREADS()
         } else {
             left / N_THREADS() + 1

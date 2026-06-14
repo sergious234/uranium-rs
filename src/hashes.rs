@@ -15,7 +15,6 @@ pub(crate) fn bytes_to_hex(bytes: &[u8]) -> String {
     hex_string
 }
 
-
 fn get_sha1_from_file<I: AsRef<Path>>(file_path: I) -> String {
     let mut hasher = Sha1::new();
     let mut file = fs::File::open(&file_path).unwrap();
@@ -53,6 +52,6 @@ pub fn _curse_hash(path: &String) -> String {
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)
         .unwrap();
-    buffer.retain(|&x| (x != 9 && x != 10 && x != 13 && x != 32));
+    buffer.retain(|&x| x != 9 && x != 10 && x != 13 && x != 32);
     murmurhash2(&buffer).to_string()
 }

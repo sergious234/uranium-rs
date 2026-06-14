@@ -7,6 +7,7 @@ use std::{
 
 use futures_util::future::join_all;
 use futures_util::StreamExt;
+use futures_util::stream::FuturesUnordered;
 use log::{error, info};
 use reqwest::Response;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -282,7 +283,7 @@ impl Downloader {
             .clone()
             .acquire_owned()
             .await
-            .map_err(|e| UraniumError::other(&format!("Failed to acquire semaphore: {e}")))
+            .map_err(|e| UraniumError::other(format!("Failed to acquire semaphore: {e}")))
     }
 
     async fn get_next_chunk(&mut self) -> Vec<DownloadableObject> {
@@ -343,7 +344,7 @@ async fn download_and_write(
     requester: reqwest::Client,
     _sem: OwnedSemaphorePermit,
 ) -> Result<()> {
-    let x = objects
+    let tasks = objects
         .into_iter()
         .map(|obj| async {
             let response = match requester
@@ -358,7 +359,7 @@ async fn download_and_write(
             download_single_file(response, obj).await
         });
 
-    let errors: Vec<DownloadableObject> = join_all(x)
+    let errors: Box<[DownloadableObject]> = join_all(tasks)
         .await
         .into_iter()
         .flat_map(|e| match e {
@@ -399,7 +400,7 @@ async fn verify_file_hash(path: &Path, expected_hash: &Option<HashType>) -> Resu
 
 async fn download_single_file(response: Response, obj: DownloadableObject) -> Result<()> {
     if !response.status().is_success() {
-        return Err(UraniumError::other(&format!(
+        return Err(UraniumError::other(format!(
             "Error with response, status {}",
             response.status()
         )));

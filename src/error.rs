@@ -27,7 +27,7 @@ pub enum UraniumError {
     #[error("File hash doesnt match")]
     FileNotMatch(DownloadableObject),
     #[error("Files hashes doesnt match")]
-    FilesDontMatch(Vec<DownloadableObject>),
+    FilesDontMatch(Box<[DownloadableObject]>),
     #[error("Zip Error: `{0}`")]
     ZipError(zip::result::ZipError),
     #[error("Can't compress the modpack")]
@@ -45,7 +45,7 @@ pub enum UraniumError {
 }
 
 impl UraniumError {
-    pub fn other(msg: &str) -> Self {
+    pub fn other<T: ToString>(msg: T) -> Self {
         Self::OtherWithReason(msg.to_string())
     }
 }

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use log::{error, info};
+use log::{error, info, warn};
 use mine_data_structs::minecraft::{
     AssetIndex, DownloadData, Library, ObjectData, Os, Resources, Root,
 };
@@ -182,6 +182,9 @@ impl InstallationVerifier {
             return Some(index);
         }
         use std::fs;
+
+        // Mojang json comes with spaces after ',' and ':', so we need to 
+        // replace them with the trimmed version.
         let data = fs::read_to_string(&index_path)
             .ok()?
             .replace(":", ": ")
@@ -260,9 +263,10 @@ impl InstallationVerifier {
             .flat_map(|(_, data)| {
                 let object_path = base.join(data.get_path());
                 if let Ok(false) = verify_file_hash(&object_path, &data.hash) {
-                    error!("Wrong hash for {object_path:?}, {}", data.hash);
+                    warn!("Wrong hash for {object_path:?}, {}", data.hash);
                     Some(data)
                 } else {
+                    error!("Something wrong happened with the file");
                     None
                 }
             })

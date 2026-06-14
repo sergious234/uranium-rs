@@ -4,17 +4,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
-
 use log::{error, info};
 use mine_data_structs::minecraft::{
     Library, MinecraftVersions, Profile, ProfilesJson, Resources, Root,
 };
 use reqwest;
-// use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 
-use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader, HashType};
 use super::RuntimeDownloader;
+use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader, HashType};
 use crate::{
     code_functions::N_THREADS,
     error::{Result, UraniumError},
@@ -345,6 +343,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             }
 
             MinecraftDownloadState::CheckingFiles => {
+                // TODO: Check the files
                 self.download_state = MinecraftDownloadState::Completed;
             }
 
@@ -579,8 +578,9 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
 
     // WIP
     #[allow(dead_code)]
-    /// Return a `impl Iterator<Item = DownloadableObject>` with the urls of the libraries for the current.
-    /// If the lib has no specified Os then it will be inside the vector too.
+    /// Return a `impl Iterator<Item = DownloadableObject>` with the urls of the
+    /// libraries for the current. If the lib has no specified Os then it
+    /// will be inside the vector too.
     fn get_os_libraries(&self, libraries: &[Library]) -> impl Iterator<Item = DownloadableObject> {
         let lib_path = self
             .dot_minecraft_path
@@ -613,9 +613,9 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     ///
     /// # Returns
     ///
-    /// A `Result` containing a `impl Iterator<Item = DownloadableObject>` with all the library
-    /// files that need to be downloaded, or an error if the operation
-    /// fails.
+    /// A `Result` containing a `impl Iterator<Item = DownloadableObject>` with
+    /// all the library files that need to be downloaded, or an error if the
+    /// operation fails.
     fn prepare_libraries(&self) -> Result<impl Iterator<Item = DownloadableObject>> {
         let lib_path = self
             .dot_minecraft_path
