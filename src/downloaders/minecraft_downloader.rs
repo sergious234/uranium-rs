@@ -261,13 +261,13 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     pub async fn progress(&mut self) -> Result<MinecraftDownloadState> {
         match self.download_state {
             MinecraftDownloadState::GettingSources => {
-                let files: Box<[DownloadableObject]> = self
+                let assets: Box<[DownloadableObject]> = self
                     .get_sources()
                     .await?
                     .collect();
 
                 if self
-                    .create_assests_folders(files.iter())
+                    .create_assets_folders(assets.iter())
                     .is_err()
                 {
                     error!("Error creating assets folders");
@@ -275,7 +275,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
                 };
 
                 self.downloader
-                    .add_objects(files);
+                    .add_objects(assets);
                 self.download_state = MinecraftDownloadState::DownloadingVersion;
             }
 
@@ -293,11 +293,11 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
 
                 match download_state {
                     Ok(DownloadState::Completed) => {
-                        let files: Box<[_]> = self
+                        let libs: Box<[_]> = self
                             .prepare_libraries()?
                             .collect();
                         self.downloader
-                            .add_objects(files);
+                            .add_objects(libs);
                         self.download_state = MinecraftDownloadState::DownloadingLibraries;
                     }
                     Err(e) => {
@@ -319,7 +319,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
                         self.download_state = MinecraftDownloadState::DownloadingRuntime;
                     }
                     Err(e) => {
-                        error!("Error downloading assets: {e}");
+                        error!("Error downloading libraries: {e}");
                         return Err(e);
                     }
                     _ => {}
@@ -338,6 +338,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
 
                 if let Err(err) = runtime_res {
                     error!("Error downloading runtime: {}", err);
+                    return Err(err);
                 }
                 self.download_state = MinecraftDownloadState::CheckingFiles;
             }
@@ -449,11 +450,9 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     /// If there is no downloader associated with the current instance, it
     /// returns 0.
     pub fn requests_left(&self) -> usize {
-        (self
+        self
             .downloader
-            .requests_left() as f64
-            / N_THREADS() as f64)
-            .ceil() as usize
+            .requests_left()
     }
 
     /// Returns the number of chunks of libs to download: `libs.len() /
@@ -488,21 +487,19 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             .json::<Resources>()
             .await?;
 
-        tokio::fs::create_dir_all(
+        std::fs::create_dir_all(
             self.dot_minecraft_path
                 .join("assets/indexes"),
         )
-        .await
         .map_err(|err| {
             error!("Cant create assets/indexes: [{err}]");
             UraniumError::CantCreateDir("assets/indexes")
         })?;
 
-        tokio::fs::create_dir_all(
+        std::fs::create_dir_all(
             self.dot_minecraft_path
                 .join("assets/objects"),
         )
-        .await
         .map_err(|err| {
             error!("Cant create assets/objects: [{err}]");
             UraniumError::CantCreateDir("assets/objects")
@@ -548,7 +545,11 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         indexes
             .write_all(
                 serde_json::to_string(resources)
-                    .unwrap_or_default()
+                    .map_err(|_| {
+                        UraniumError::OtherWithReason(
+                            "Resources is not serializable or has wrong data".to_string(),
+                        )
+                    })?
                     .as_bytes(),
             )
             .await?;
@@ -557,7 +558,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     }
 
     /// When success all the assets folder are created
-    fn create_assests_folders<'a>(
+    fn create_assets_folders<'a>(
         &self,
         names: impl Iterator<Item = &'a DownloadableObject>,
     ) -> Result<()> {
@@ -630,7 +631,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
                     l.get_url(),
                     &lib_path.join(
                         l.get_rel_path()
-                            .unwrap_or_else(|| panic!("Missing download field for library {l:?}")),
+                            .expect("Missing download field for library {l:?}"),
                     ),
                     l.get_hash()
                         .map(|h| HashType::Sha1(h.to_string())),

@@ -1,18 +1,18 @@
-use std::sync::Arc;
 use std::fs::create_dir_all;
+use std::sync::Arc;
 use std::{
     collections::VecDeque,
     path::{Path, PathBuf},
 };
 
-use futures_util::future::join_all;
 use futures_util::StreamExt;
+use futures_util::future::join_all;
 use futures_util::stream::FuturesUnordered;
 use log::{error, info};
 use reqwest::Response;
+use sha1::Digest;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::{io::AsyncWriteExt, task::JoinHandle};
-use sha1::Digest;
 
 use crate::error::Result;
 use crate::hashes::bytes_to_hex;
@@ -169,7 +169,7 @@ pub struct Downloader {
     requester: reqwest::Client,
     start: usize,
     s: Arc<Semaphore>,
-    tasks: VecDeque<JoinHandle<Result<()>>>,
+    tasks: FuturesUnordered<JoinHandle<Result<()>>>,
 }
 
 impl FileDownloader for Downloader {
@@ -187,7 +187,7 @@ impl FileDownloader for Downloader {
             requester: client,
             start: 0,
             s: Arc::new(Semaphore::new(N_THREADS())),
-            tasks: VecDeque::with_capacity(n_files),
+            tasks: FuturesUnordered::new(),
         }
     }
 
@@ -196,60 +196,25 @@ impl FileDownloader for Downloader {
             self.make_requests().await?;
         }
 
-        if !self.tasks.is_empty() {
-            let mut guard = true;
-            let mut i = 0;
-            while guard {
-                guard = false;
-                // SAFETY: There is no way this unwraps fails since we are
-                // iterating over the len of the queue and no other thread
-                // is modifying the queue, also the queue is not empty.
-                if self
-                    .tasks
-                    .get(i)
-                    .unwrap()
-                    .is_finished()
-                {
-                    let task = self.tasks.remove(i).unwrap();
-                    guard = true;
-                    match task.await? {
-                        Err(UraniumError::FilesDontMatch(objects)) => {
-                            error!("Trying again {} files", objects.len());
-                            self.files.extend(objects);
-                        }
-                        Err(e) => Err(e)?,
-                        Ok(_) => {}
-                    }
-                    break;
-                }
-
-                i = (i + 1) % self.tasks.len();
-            }
-
-            if guard {
-                return Ok(DownloadState::Downloading);
-            }
-
-            // In case no task is finished yet, we wait for the first one
-            if !self.tasks.is_empty() {
-                info!("Waiting the first one...");
-                // let _ = join_all(&mut self.tasks).await;
-                // self.tasks.clear();
-                // UNWRAP SAFETY: Can't be empty since we are checking.
-                match self
-                    .tasks
-                    .pop_front()
-                    .unwrap()
-                    .await?
-                {
-                    Err(UraniumError::FilesDontMatch(objects)) => self.files.extend(objects),
-                    Err(e) => Err(e)?,
-                    _ => {}
-                };
-                return Ok(DownloadState::Downloading);
-            }
+        if self.tasks.is_empty() {
+            return Ok(DownloadState::Completed);
         }
-        Ok(DownloadState::Completed)
+
+        let task = self
+            .tasks
+            .next()
+            .await
+            .unwrap();
+
+        match task? {
+            Err(UraniumError::FilesDontMatch(objects)) => {
+                error!("Trying again {} files", objects.len());
+                self.files.extend(objects);
+            }
+            Err(e) => Err(e)?,
+            Ok(_) => {}
+        }
+        Ok(DownloadState::Downloading)
     }
 
     /// Returns how many requests are left.
@@ -332,9 +297,10 @@ impl Downloader {
             .await?;
         let client = self.requester.clone();
         let task = tokio::spawn(async move { download_and_write(chunk, client, sem).await });
+        self.tasks.push(task);
 
         info!("Pushing new task {}", self.start);
-        self.tasks.push_back(task);
+        // self.tasks.push_back(task);
         Ok(DownloadState::MakingRequests)
     }
 }
