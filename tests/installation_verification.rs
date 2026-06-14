@@ -13,14 +13,14 @@ pub async fn test1() {
     let mut md = MinecraftDownloader::<Downloader>::init(PATH, VERSION)
         .await
         .unwrap();
+    println!("Downloading minecraft...");
     let res = md.start().await;
 
     if res.is_ok() {
-        let x =
-            InstallationVerifier::new(&PathBuf::from(PATH), VERSION).await;
-        let _ = x.map(|iv| {
-            iv.verify();
-        });
+        let x = InstallationVerifier::new(&PathBuf::from(PATH), VERSION).await.unwrap();
+        println!("Verifying minecraft...");
+        let res = x.verify();
+        println!("Wrong files: {}", res.total_problems());
     } else {
         eprintln!("{}", res.err().unwrap());
         panic!("Could not download minecraft")

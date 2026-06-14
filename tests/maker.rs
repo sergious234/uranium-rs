@@ -18,13 +18,13 @@ async fn make() {
 
 #[tokio::test]
 async fn make_and_download_without_ext() {
-    use uranium_rs::modpack_maker::ModpackMaker2;
+    use uranium_rs::modpack_maker::ModpackMaker;
 
     let pack_name = PathBuf::from("tests/test2");
     let pack_name_ext = PathBuf::from("tests/test2.mrpack");
 
     let _ = init_logger();
-    let maker = ModpackMaker2::new(MODS_PATHS, &pack_name); 
+    let maker = ModpackMaker::new(MODS_PATHS, &pack_name); 
     if let Err(e) = maker.finish().await {
         panic!("Error happened while making the modpack {e}");
     }
