@@ -183,7 +183,7 @@ impl InstallationVerifier {
         }
         use std::fs;
 
-        // Mojang json comes with spaces after ',' and ':', so we need to 
+        // Mojang json comes with spaces after ',' and ':', so we need to
         // replace them with the trimmed version.
         let data = fs::read_to_string(&index_path)
             .ok()?
@@ -262,12 +262,18 @@ impl InstallationVerifier {
             .par_iter()
             .flat_map(|(_, data)| {
                 let object_path = base.join(data.get_path());
-                if let Ok(false) = verify_file_hash(&object_path, &data.hash) {
-                    warn!("Wrong hash for {object_path:?}, {}", data.hash);
-                    Some(data)
-                } else {
-                    error!("Something wrong happened with the file");
-                    None
+                match verify_file_hash(&object_path, &data.hash) {
+                    Ok(false) => {
+                        warn!("Wrong hash for {object_path:?}, {}", data.hash);
+                        Some(data)
+                    }
+                    Err(e) => {
+                        error!("Error verifying: {}",e);
+                        None
+                    }
+                    _ => {
+                        None
+                    }
                 }
             })
             .collect::<Vec<&ObjectData>>();
@@ -371,7 +377,7 @@ fn verify_file_hash(file_path: &Path, expected_hash: &str) -> Result<bool> {
     use crate::hashes::rinth_hash;
 
     if !file_path.exists() {
-        return Ok(false);
+        return Err(UraniumError::FileNotFound(file_path.to_string_lossy().to_string()));
     }
     let actual_hash = rinth_hash(file_path);
     Ok(actual_hash.to_lowercase() == expected_hash.to_lowercase())
