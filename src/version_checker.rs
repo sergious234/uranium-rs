@@ -4,6 +4,7 @@ use log::{error, info, warn};
 use mine_data_structs::minecraft::{
     AssetIndex, DownloadData, Library, ObjectData, Os, Resources, Root,
 };
+use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::downloaders::list_instances;
 use crate::error::{Result, UraniumError};
@@ -106,6 +107,12 @@ impl InstallationVerifier {
         let index = self.very_index();
         let client = self.verify_client();
         info!("Wrong files: {}", libs.len() + objects.len());
+        if let Some(index) = index {
+            info!("Wrong index: {}", index.id);
+        }
+        if let Some(client) = client {
+            info!("Wrong client: {}", client.sha1);
+        }
 
         VersionCheckResult {
             objects,
@@ -134,8 +141,12 @@ impl InstallationVerifier {
             .minecraft_path
             .join("versions")
             .join(&self.minecraft_instance.id)
-            .join(&self.minecraft_instance.id)
-            .with_extension("jar");
+            .join(
+                self.minecraft_instance
+                    .id
+                    .clone()
+                    + ".jar",
+            );
 
         let client = self
             .minecraft_instance
@@ -143,6 +154,7 @@ impl InstallationVerifier {
             .get("client")?;
 
         if !client_path.exists() {
+            error!("Client doesn't exist: {client_path:?}");
             Some(client)
         } else if let Ok(false) = verify_file_hash(&client_path, &client.sha1) {
             error!("Wrong hash for {:?}, {}", &client_path, &client.sha1);
@@ -181,6 +193,7 @@ impl InstallationVerifier {
         if !index_path.exists() {
             return Some(index);
         }
+
         use std::fs;
 
         // Mojang json comes with spaces after ',' and ':', so we need to
@@ -208,38 +221,53 @@ impl InstallationVerifier {
     }
 
     fn verify_libs(&self) -> Box<[&Library]> {
-        let mut bad_objects = vec![];
-
         let current_os = match std::env::consts::OS {
             "linux" => Os::Linux,
             "windows" => Os::Windows,
             _ => Os::Other,
         };
 
-        for lib in self
+        // Extract libs for the current os
+        let os_libs = self
             .minecraft_instance
             .libraries
             .iter()
             .filter(|l| {
                 l.get_os()
                     .is_none_or(|os| os == current_os)
-            })
-        {
-            if let Some((path, hash)) = lib
-                .downloads
+            });
+
+        // Set up an iterator with all the data needed
+        let raw_data = os_libs.filter_map(|lib| {
+            lib.downloads
                 .as_ref()
-                .map(|d| (&d.artifact.path, &d.artifact.sha1))
-            {
-                let lib_path = self
-                    .minecraft_path
+                .map(|d| (&d.artifact.path, &d.artifact.sha1, lib))
+        });
+
+        // Fix the lib's paths
+        let fixed_data = raw_data.map(|(path, sha1, lib)| {
+            (
+                self.minecraft_path
                     .join("libraries")
-                    .join(path);
+                    .join(path),
+                sha1,
+                lib,
+            )
+        });
+
+        // Verify libraries in parallel with rayon
+        let bad_objects: Vec<_> = fixed_data
+            .par_bridge()
+            .filter_map(|(lib_path, hash, lib)| {
                 if let Ok(false) = verify_file_hash(&lib_path, hash) {
                     error!("Wrong hash for {lib_path:?}, {hash}");
-                    bad_objects.push(lib);
+                    Some(lib)
+                } else {
+                    None
                 }
-            }
-        }
+            })
+            .collect();
+
         Box::from(bad_objects)
     }
 
@@ -268,12 +296,10 @@ impl InstallationVerifier {
                         Some(data)
                     }
                     Err(e) => {
-                        error!("Error verifying: {}",e);
+                        error!("Error verifying: {}", e);
                         None
                     }
-                    _ => {
-                        None
-                    }
+                    _ => None,
                 }
             })
             .collect::<Vec<&ObjectData>>();
@@ -377,7 +403,11 @@ fn verify_file_hash(file_path: &Path, expected_hash: &str) -> Result<bool> {
     use crate::hashes::rinth_hash;
 
     if !file_path.exists() {
-        return Err(UraniumError::FileNotFound(file_path.to_string_lossy().to_string()));
+        return Err(UraniumError::FileNotFound(
+            file_path
+                .to_string_lossy()
+                .to_string(),
+        ));
     }
     let actual_hash = rinth_hash(file_path);
     Ok(actual_hash.to_lowercase() == expected_hash.to_lowercase())

@@ -40,7 +40,7 @@ impl<T: FileDownloader> CurseDownloader<T> {
 
         unzip_temp_pack(modpack_path)?;
 
-        let curse_pack = load_curse_pack((TEMP_DIR.to_owned() + CURSE_JSON).as_ref())
+        let curse_pack = load_curse_pack(TEMP_DIR.join(CURSE_JSON))
             .expect("Couldnt load the pack");
 
         let files_ids: Vec<String> = curse_pack

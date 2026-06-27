@@ -6,6 +6,7 @@ use futures_util::StreamExt;
 use futures_util::future::join_all;
 use futures_util::stream::FuturesUnordered;
 use log::{error, info};
+use mine_data_structs::minecraft::{AssetIndex, Library, ObjectData};
 use reqwest::Response;
 use sha1::Digest;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -155,6 +156,54 @@ impl DownloadableObject {
         self.path
             .file_name()
             .and_then(|f| f.to_str())
+    }
+}
+
+impl std::convert::From<&Library> for DownloadableObject {
+    fn from(value: &Library) -> Self {
+        let (url, hash, path) = value
+            .downloads
+            .as_ref()
+            .map(|d| {
+                (
+                    d.artifact.url.clone(),
+                    d.artifact.sha1.clone(),
+                    d.artifact.path.clone(),
+                )
+            })
+            .unwrap();
+
+        Self {
+            url,
+            hash: Some(HashType::Sha1(hash)),
+            path,
+        }
+    }
+}
+
+impl std::convert::From<&ObjectData> for DownloadableObject {
+    fn from(obj: &ObjectData) -> Self {
+        let (url, base, hash) = (obj.get_link(), obj.get_path(), obj.hash.clone());
+        let path = base
+            .join(&obj.hash[..2])
+            .join(&obj.hash);
+
+        Self {
+            url,
+            hash: Some(HashType::Sha1(hash)),
+            path,
+        }
+    }
+}
+
+impl std::convert::From<&AssetIndex> for DownloadableObject {
+    fn from(value: &AssetIndex) -> Self {
+        let (url, path, hash) = (value.url.clone(), value.id.clone(), value.sha1.clone());
+        Self {
+            url,
+            hash: Some(HashType::Sha1(hash)),
+            path: path.into(),
+        }
     }
 }
 

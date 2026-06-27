@@ -55,7 +55,7 @@ pub use curse_downloader::CurseDownloader;
 pub use gen_downloader::{DownloadState, DownloadableObject, Downloader, FileDownloader, HashType};
 pub use minecraft_downloader::{
     MinecraftDownloadState, MinecraftDownloader, get_last_release, get_last_snapshot,
-    list_instances,
+    list_instances, get_index_path, get_lib_path
 };
 pub use rinth_downloader::RinthDownloader;
 pub use runtime_downloader::RuntimeDownloader;

@@ -149,7 +149,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
             Ok(_) => {}
         }
 
-        if let Some(rinth_pack) = load_rinth_pack(&(TEMP_DIR.to_owned() + RINTH_JSON)) {
+        if let Some(rinth_pack) = load_rinth_pack(TEMP_DIR.join(RINTH_JSON)) {
             info!("Pack loaded {}", rinth_pack.get_name());
             Ok(rinth_pack)
         } else {

@@ -450,8 +450,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     /// If there is no downloader associated with the current instance, it
     /// returns 0.
     pub fn requests_left(&self) -> usize {
-        self
-            .downloader
+        self.downloader
             .requests_left()
     }
 
@@ -705,6 +704,21 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         info!("Profile added!");
         Ok(())
     }
+}
+
+pub fn get_index_path(installation_path: &Path, index_name: &Path) -> PathBuf {
+    installation_path
+        .join(ASSETS_PATH)
+        .join("indexes")
+        .join(index_name)
+}
+
+pub fn get_lib_path(installation_path: &Path, lib_path: &Path) -> PathBuf {
+    installation_path
+        .join("libraries")
+        .join(
+            lib_path
+        )
 }
 
 #[cfg(test)]

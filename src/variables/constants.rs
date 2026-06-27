@@ -1,6 +1,12 @@
+use std::path::PathBuf;
 use std::sync::RwLock;
+use std::sync::LazyLock;
 
-pub const TEMP_DIR: &str = "./temp_dir/";
+pub static TEMP_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    dirs::state_dir()
+        .map(|d| d.join("uranium"))
+        .unwrap()
+});
 
 /// In case NTHREADS cant be read this value will be returned
 pub const DEFAULT_NTHREADS: usize = 8;
