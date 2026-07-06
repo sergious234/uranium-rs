@@ -121,6 +121,16 @@ impl RuntimeDownloader {
             .map(|(k, s, h)| DownloadableObject::new(&s, &k, Some(HashType::Sha1(h.to_string()))))
             .collect();
 
-        Downloader::new(objects).complete().await
+        Downloader::new(objects).complete().await?;
+
+        #[cfg(target_os = "linux")]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let java_path = runtime_path.join("bin").join("java");
+            std::fs::set_permissions(&java_path, std::fs::Permissions::from_mode(0o766))?;
+        }
+
+        Ok(())
+
     }
 }

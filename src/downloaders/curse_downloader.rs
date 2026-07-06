@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use futures_util::future::join_all;
 use mine_data_structs::{curse::*, maker};
 use reqwest::Response;
-use futures_util::future::join_all;
 
 use super::{DownloadableObject, gen_downloader::DownloadState};
 use crate::{
@@ -40,8 +40,13 @@ impl<T: FileDownloader> CurseDownloader<T> {
 
         unzip_temp_pack(modpack_path)?;
 
-        let curse_pack = load_curse_pack(TEMP_DIR.join(CURSE_JSON))
-            .expect("Couldnt load the pack");
+        let curse_pack = load_curse_pack(
+            &TEMP_DIR
+                .join(CURSE_JSON)
+                .to_string_lossy()
+                .to_string(),
+        )
+        .expect("Couldnt load the pack");
 
         let files_ids: Vec<String> = curse_pack
             .get_files()

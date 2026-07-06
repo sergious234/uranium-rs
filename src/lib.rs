@@ -41,14 +41,15 @@ use downloaders::{
 };
 use error::{Result, UraniumError};
 use log::info;
-pub use mine_data_structs;
 use modpack_maker::{ModpackMaker, State};
 use variables::constants::*;
+pub use mine_data_structs;
 
 pub mod downloaders;
 pub mod error;
 pub mod modpack_maker;
 pub mod version_checker;
+pub mod installation_fixer;
 
 mod code_functions;
 mod hashes;

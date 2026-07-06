@@ -357,7 +357,10 @@ impl VersionCheckResult<'_> {
     /// }
     /// ```
     pub fn is_valid(&self) -> bool {
-        self.objects.is_empty() && self.libs.is_empty() && self.index.is_none()
+        self.objects.is_empty()
+            && self.libs.is_empty()
+            && self.index.is_none()
+            && self.client.is_none()
     }
 
     /// Returns the total number of problematic items found.
@@ -373,6 +376,10 @@ impl VersionCheckResult<'_> {
             + self.libs.len()
             + self
                 .index
+                .map(|_| 1)
+                .unwrap_or_default()
+            + self
+                .client
                 .map(|_| 1)
                 .unwrap_or_default()
     }
@@ -411,4 +418,70 @@ fn verify_file_hash(file_path: &Path, expected_hash: &str) -> Result<bool> {
     }
     let actual_hash = rinth_hash(file_path);
     Ok(actual_hash.to_lowercase() == expected_hash.to_lowercase())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Condvar, Mutex, LazyLock};
+    use tokio::sync::Notify;
+
+    use crate::{
+        downloaders::{Downloader, MinecraftDownloader},
+        variables::constants::TEMP_DIR,
+    };
+
+    use super::*;
+
+    static PAIR: LazyLock<Arc<(Mutex<bool>, Condvar)>> =
+        LazyLock::new(|| Arc::new((Mutex::new(false), Condvar::new())));
+
+    const VERSION: &str = "1.21.1";
+
+    #[tokio::test]
+    async fn a_download_minecraft() -> Result<()> {
+        let (lock, cvar) = &*(PAIR.clone());
+        let mut downloader = MinecraftDownloader::<Downloader>::init(TEMP_DIR.as_path(), VERSION)
+            .await
+            .unwrap();
+        let _ = downloader.start().await;
+        *lock.lock().unwrap() = true;
+        cvar.notify_all();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn check_file() {
+        let (lock, cvar) = &*(PAIR.clone());
+        let mut started = lock.lock().unwrap();
+        while !*started {
+            started = cvar.wait(started).unwrap();
+        }
+
+        let checker = InstallationVerifier::new(&TEMP_DIR, VERSION)
+            .await
+            .unwrap();
+        let result = checker.verify();
+        assert_eq!(result.total_problems(), 0);
+    }
+
+    #[tokio::test]
+    async fn check_missing_client() {
+        let (lock, cvar) = &*(PAIR.clone());
+        let mut started = lock.lock().unwrap();
+        while !*started {
+            started = cvar.wait(started).unwrap();
+        }
+
+        let checker = InstallationVerifier::new(&TEMP_DIR, VERSION)
+            .await
+            .unwrap();
+        if let Err(e) =
+            std::fs::remove_file("/home/sergio/.local/state/uranium/versions/1.21.1/1.21.1.jar")
+        {
+            panic!("Could not remove {e}");
+        }
+        let result = checker.verify();
+        assert_eq!(result.total_problems(), 1);
+    }
 }

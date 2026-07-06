@@ -2,6 +2,7 @@ use std::io::Write;
 use std::{
     fs::File,
     path::{Path, PathBuf},
+    os::unix::fs::PermissionsExt
 };
 
 use log::{error, info};
@@ -413,6 +414,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             self.downloader
                 .complete()
                 .await?;
+            std::fs::set_permissions(&client_path, std::fs::Permissions::from_mode(0o766))?
         }
         Ok(())
     }
@@ -723,7 +725,9 @@ pub fn get_lib_path(installation_path: &Path, lib_path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use log::warn;
+
+use super::*;
     use crate::downloaders::Downloader;
     use crate::error::Result;
     use crate::init_logger;
@@ -743,7 +747,10 @@ mod tests {
             };
 
             if let MinecraftDownloadState::Completed = state {
-                downloader.add_instance("/home/sergio/.minecraft", "Vanilla 1.20.1", None)?;
+                let instance_res = downloader.add_instance("/home/sergio/.minecraft", "Vanilla 1.20.1", None);
+                if let Err(err) = instance_res {
+                    warn!("{err}");
+                }
                 break Some(());
             }
             stdout
