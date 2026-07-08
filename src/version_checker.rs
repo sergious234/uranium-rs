@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use log::{error, info, warn};
 use mine_data_structs::minecraft::{
-    AssetIndex, DownloadData, Library, ObjectData, Os, Resources, Root,
+    AssetIndex, DownloadData, Library, ObjectData, Resources, Root,
 };
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
@@ -221,21 +221,12 @@ impl InstallationVerifier {
     }
 
     fn verify_libs(&self) -> Box<[&Library]> {
-        let current_os = match std::env::consts::OS {
-            "linux" => Os::Linux,
-            "windows" => Os::Windows,
-            _ => Os::Other,
-        };
-
         // Extract libs for the current os
         let os_libs = self
             .minecraft_instance
             .libraries
             .iter()
-            .filter(|l| {
-                l.get_os()
-                    .is_none_or(|os| os == current_os)
-            });
+            .filter(|l| l.applies());
 
         // Set up an iterator with all the data needed
         let raw_data = os_libs.filter_map(|lib| {
@@ -422,8 +413,7 @@ fn verify_file_hash(file_path: &Path, expected_hash: &str) -> Result<bool> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Condvar, Mutex, LazyLock};
-    use tokio::sync::Notify;
+    use std::sync::{Arc, Condvar, LazyLock, Mutex};
 
     use crate::{
         downloaders::{Downloader, MinecraftDownloader},

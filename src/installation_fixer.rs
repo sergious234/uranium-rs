@@ -75,7 +75,7 @@ mod tests {
                     sha1: sha1.into(),
                     size: 1024,
                     url: "https://example.com/lib.jar".into(),
-                },
+                }, classifiers: None
             }),
             rules: None,
         }

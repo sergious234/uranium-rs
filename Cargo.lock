@@ -962,9 +962,7 @@ checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
 name = "mine_data_structs"
-version = "1.0.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20174c11e4d249da3e4f9c2e670657737e72a65ee35cf3300e9b986eac4c7bee"
+version = "1.0.11"
 dependencies = [
  "dirs",
  "indexmap",
@@ -1888,7 +1886,7 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "uranium-rs"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "chrono",
  "dirs",

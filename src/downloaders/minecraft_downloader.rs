@@ -1,13 +1,14 @@
+use std::env::consts::OS;
 use std::io::Write;
 use std::{
     fs::File,
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
-    os::unix::fs::PermissionsExt
 };
 
 use log::{error, info};
 use mine_data_structs::minecraft::{
-    Library, MinecraftVersions, Profile, ProfilesJson, Resources, Root,
+    Artifact, Library, MinecraftVersions, Profile, ProfilesJson, Resources, Root,
 };
 use reqwest;
 use tokio::io::AsyncWriteExt;
@@ -588,17 +589,10 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             .dot_minecraft_path
             .join("libraries");
 
-        let current_os = match std::env::consts::OS {
-            "linux" => mine_data_structs::minecraft::Os::Linux,
-            "macos" => mine_data_structs::minecraft::Os::Other,
-            // "windows" => mine_data_structs::minecraft::Os::Windows,
-            _ => mine_data_structs::minecraft::Os::Windows,
-        };
         libraries
             .iter()
             .filter(move |lib| {
-                lib.get_os()
-                    .is_none_or(|os| os == current_os)
+                lib.applies()
             })
             .map(move |lib| {
                 DownloadableObject::new(
@@ -623,10 +617,54 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             .dot_minecraft_path
             .join("libraries");
 
+        fn extract_native(lib: &Library) -> Option<&Artifact> {
+            if let Some(downloads) = &lib.downloads
+                && let Some(classifiers) = &downloads.classifiers
+            {
+                return match OS {
+                    "linux"
+                        if classifiers
+                            .natives_linux
+                            .is_some() =>
+                    {
+                        classifiers
+                            .natives_linux
+                            .as_ref()
+                    },
+                    "windows"
+                        if classifiers
+                            .natives_windows
+                            .is_some() =>
+                    {
+                        classifiers
+                            .natives_windows
+                            .as_ref()
+                    },
+                    _ => None,
+                };
+            }
+            None
+        }
+
+        let value = lib_path.clone();
+        let natives = self
+            .minecraft_instance
+            .libraries
+            .iter()
+            .flat_map(|l| extract_native(l))
+            .map(move |l| {
+                DownloadableObject::new(
+                    &l.url,
+                    &value.join(&l.path),
+                    Some(HashType::Sha1(l.sha1.clone())),
+                )
+            });
+
         Ok(self
             .minecraft_instance
             .libraries
             .iter()
+            .filter(|l| l.applies())
             .map(move |l| {
                 DownloadableObject::new(
                     l.get_url(),
@@ -637,7 +675,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
                     l.get_hash()
                         .map(|h| HashType::Sha1(h.to_string())),
                 )
-            }))
+            }).chain(natives))
     }
 
     /// This function will add a new minecraft profile to
@@ -718,16 +756,14 @@ pub fn get_index_path(installation_path: &Path, index_name: &Path) -> PathBuf {
 pub fn get_lib_path(installation_path: &Path, lib_path: &Path) -> PathBuf {
     installation_path
         .join("libraries")
-        .join(
-            lib_path
-        )
+        .join(lib_path)
 }
 
 #[cfg(test)]
 mod tests {
     use log::warn;
 
-use super::*;
+    use super::*;
     use crate::downloaders::Downloader;
     use crate::error::Result;
     use crate::init_logger;
@@ -747,7 +783,8 @@ use super::*;
             };
 
             if let MinecraftDownloadState::Completed = state {
-                let instance_res = downloader.add_instance("/home/sergio/.minecraft", "Vanilla 1.20.1", None);
+                let instance_res =
+                    downloader.add_instance("/home/sergio/.minecraft", "Vanilla 1.20.1", None);
                 if let Err(err) = instance_res {
                     warn!("{err}");
                 }
