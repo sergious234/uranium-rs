@@ -14,8 +14,8 @@
 //! * [`CurseDownloader`]: For downloading modpacks from CurseForge.
 //! * [`RinthDownloader`]: For downloading modpacks from Modrinth.
 //! * [`RuntimeDownloader`]: Specifically for downloading Java runtimes.
-//! * [`MinecraftDownloader`]: For handling the complex process of
-//!   downloading Minecraft versions, assets, and libraries.
+//! * [`MinecraftDownloader`]: For handling the complex process of downloading
+//!   Minecraft versions, assets, and libraries.
 //!
 //! ## Examples
 //!
@@ -54,8 +54,8 @@
 pub use curse_downloader::CurseDownloader;
 pub use gen_downloader::{DownloadState, DownloadableObject, Downloader, FileDownloader, HashType};
 pub use minecraft_downloader::{
-    MinecraftDownloadState, MinecraftDownloader, get_last_release, get_last_snapshot,
-    list_instances, get_index_path, get_lib_path
+    MinecraftDownloadState, MinecraftDownloader, get_index_path, get_last_release,
+    get_last_snapshot, get_lib_path, list_instances,
 };
 pub use rinth_downloader::RinthDownloader;
 pub use runtime_downloader::RuntimeDownloader;

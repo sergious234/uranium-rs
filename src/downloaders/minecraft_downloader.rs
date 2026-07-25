@@ -18,7 +18,7 @@ use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader, H
 use crate::{
     code_functions::N_THREADS,
     error::{Result, UraniumError},
-    variables::constants::PROFILES_FILE,
+    variables::constants::{EXECUTABLE_MODE, PROFILES_FILE},
 };
 
 const ASSETS_PATH: &str = "assets/";
@@ -110,7 +110,7 @@ pub async fn get_last_release() -> Result<String> {
 pub enum MinecraftDownloadState {
     GettingSources,
     DownloadingVersion,
-    DownloadingAssests,
+    DownloadingAssets,
     DownloadingLibraries,
     DownloadingRuntime,
     CheckingFiles,
@@ -189,6 +189,52 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         destination_path: I,
         minecraft_version: &str,
     ) -> Result<Self> {
+        MinecraftDownloader::with_downloader(destination_path, minecraft_version, T::new()).await
+    }
+
+    /// Makes a new `MinecraftDownloader` struct using an existing Downloader
+    /// struct.
+    ///
+    /// - `destination_path`: Where minecraft will be downloaded. (THIS IS
+    ///   USUALLY `.minecraft` DIRECTORY)
+    /// - `minecraft_version`: Which versions is going to be downloaded.
+    /// - `downloader`: Downloader that will be used
+    ///
+    /// This is usefull in case the **YOU** want to do something with the
+    /// downloader before using it. Look at the example
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// async fn foo<T: FileDownloader + Send + Sync>() -> Result<()>{
+    ///
+    ///     let my_downloader = MyChanneledDownloader::new();
+    ///
+    ///     // MyChanneledDownloader has a mpsc channel inside which reports the progress of the downloader
+    ///     let rx = my_downloader.get_channel();
+    ///
+    ///     // This will result in an error since "league of legends" is mental illness.
+    ///     // (and also a game)
+    ///     let downloader = MinecraftDownloader::with_downloader("my/mine/path", "league of legends", my_downloader).await?;
+    ///
+    ///     // Now I can send rx to another thread and recieve info from my custom downloader.
+    ///
+    ///     thread::spawn(move || {
+    ///         while let Ok(r) = rx.recv() {
+    ///             info!("{r}");
+    ///         }
+    ///     })
+    ///
+    ///     downloader.start().await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn with_downloader<I: AsRef<Path>>(
+        destination_path: I,
+        minecraft_version: &str,
+        downloader: T,
+    ) -> Result<Self> {
         let requester = reqwest::Client::new();
         let instances = list_instances().await?;
 
@@ -212,17 +258,18 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         Ok(MinecraftDownloader::new(
             destination_path,
             minecraft_instance,
+            downloader,
+            requester
         ))
     }
 
-    /// WIP
-    fn new(destination_path: PathBuf, minecraft_instance: Root) -> Self {
+    fn new(destination_path: PathBuf, minecraft_instance: Root, downloader: T, requester: reqwest::Client) -> Self {
         MinecraftDownloader {
-            requester: reqwest::Client::new(),
+            requester,
             dot_minecraft_path: destination_path,
             minecraft_instance,
             download_state: MinecraftDownloadState::GettingSources,
-            downloader: T::new(vec![]),
+            downloader,
         }
     }
 
@@ -284,10 +331,10 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             MinecraftDownloadState::DownloadingVersion => {
                 self.create_version_folder()
                     .await?;
-                self.download_state = MinecraftDownloadState::DownloadingAssests;
+                self.download_state = MinecraftDownloadState::DownloadingAssets;
             }
 
-            MinecraftDownloadState::DownloadingAssests => {
+            MinecraftDownloadState::DownloadingAssets => {
                 let download_state = self
                     .downloader
                     .progress()
@@ -335,7 +382,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
                         .component
                         .to_string(),
                 )
-                .download()
+                .start()
                 .await;
 
                 if let Err(err) = runtime_res {
@@ -413,9 +460,12 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             self.downloader
                 .add_object(obj);
             self.downloader
-                .complete()
+                .start()
                 .await?;
-            std::fs::set_permissions(&client_path, std::fs::Permissions::from_mode(0o766))?
+            std::fs::set_permissions(
+                &client_path,
+                std::fs::Permissions::from_mode(EXECUTABLE_MODE),
+            )?
         }
         Ok(())
     }
@@ -430,11 +480,9 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         if !instance_path.exists() {
             info!("Writing client json!");
             let mut instance_file = File::create(instance_path)?;
-            instance_file.write_all(
-                serde_json::to_string(&self.minecraft_instance)
-                    .unwrap()
-                    .as_bytes(),
-            )?;
+            let content = serde_json::to_string(&self.minecraft_instance)
+                .map_err(|e| UraniumError::OtherWithReason(e.to_string()))?;
+            instance_file.write_all(content.as_bytes())?;
         }
         Ok(())
     }
@@ -559,23 +607,15 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         Ok(())
     }
 
-    /// When success all the assets folder are created
     fn create_assets_folders<'a>(
         &self,
         names: impl Iterator<Item = &'a DownloadableObject>,
     ) -> Result<()> {
         for dir in names {
-            std::fs::create_dir_all(
-                self.dot_minecraft_path
-                    .join(
-                        dir.name()
-                            .ok_or(UraniumError::other("No filename"))?,
-                    )
-                    .parent()
-                    .ok_or(UraniumError::other("Error creating assests forlder"))?,
-            )?;
+            if let Some(parent) = dir.path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
         }
-
         Ok(())
     }
 
@@ -591,9 +631,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
 
         libraries
             .iter()
-            .filter(move |lib| {
-                lib.applies()
-            })
+            .filter(move |lib| lib.applies())
             .map(move |lib| {
                 DownloadableObject::new(
                     lib.get_url(),
@@ -630,7 +668,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
                         classifiers
                             .natives_linux
                             .as_ref()
-                    },
+                    }
                     "windows"
                         if classifiers
                             .natives_windows
@@ -639,7 +677,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
                         classifiers
                             .natives_windows
                             .as_ref()
-                    },
+                    }
                     _ => None,
                 };
             }
@@ -664,18 +702,26 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
             .minecraft_instance
             .libraries
             .iter()
-            .filter(|l| l.applies())
-            .map(move |l| {
+            .filter(|l| l.applies() && l.downloads.is_some())
+            .flat_map(|l| l.downloads.as_ref())
+            .map(|d| &d.artifact)
+            .map(move |a| {
                 DownloadableObject::new(
-                    l.get_url(),
-                    &lib_path.join(
-                        l.get_rel_path()
-                            .expect("Missing download field for library {l:?}"),
-                    ),
-                    l.get_hash()
-                        .map(|h| HashType::Sha1(h.to_string())),
-                )
-            }).chain(natives))
+                    &a.url,
+                    &lib_path.join(&a.path),
+                    Some(HashType::Sha1(a.sha1.clone()))
+                    )
+                // DownloadableObject::new(
+                //     l.get_url(),
+                //     &lib_path.join(
+                //         l.get_rel_path()
+                //             .expect("Missing download field for library {l:?}"),
+                //     ),
+                //     l.get_hash()
+                //         .map(|h| HashType::Sha1(h.to_string())),
+                // )
+            })
+            .chain(natives))
     }
 
     /// This function will add a new minecraft profile to
@@ -761,51 +807,368 @@ pub fn get_lib_path(installation_path: &Path, lib_path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use log::warn;
+    use std::collections::HashMap;
+
+    use mine_data_structs::minecraft::{
+        Arguments, Artifact, AssetIndex, Classifiers, JavaVersion, Library, LibraryDownloads, Os,
+        OsName, Root, Rule,
+    };
 
     use super::*;
-    use crate::downloaders::Downloader;
-    use crate::error::Result;
-    use crate::init_logger;
 
+    /// A mock `FileDownloader` for testing `MinecraftDownloader`'s state
+    /// machine.
+    ///
+    /// Simulates downloading by returning `Downloading` once per batch of
+    /// objects, then `Completed`. Objects added via
+    /// `add_object`/`add_objects` are tracked and reported through
+    /// `requests_left`.
+    #[allow(dead_code)]
+    struct MockDownloader {
+        total: usize,
+        remaining: usize,
+        completed: bool,
+        objects: Vec<DownloadableObject>,
+    }
+
+    impl FileDownloader for MockDownloader {
+        fn new() -> Self {
+            MockDownloader {
+                total: 0,
+                remaining: 0,
+                completed: true,
+                objects: vec![],
+            }
+        }
+
+        async fn progress(&mut self) -> Result<DownloadState> {
+            if self.completed {
+                return Ok(DownloadState::Completed);
+            }
+            if self.remaining > 0 {
+                self.remaining = 0;
+                self.completed = true;
+                Ok(DownloadState::Downloading)
+            } else {
+                Ok(DownloadState::Completed)
+            }
+        }
+
+        fn requests_left(&self) -> usize {
+            self.remaining
+        }
+
+        fn len(&self) -> usize {
+            self.total
+        }
+
+        fn add_object(&mut self, obj: DownloadableObject) {
+            self.objects.push(obj);
+            self.total += 1;
+            self.remaining += 1;
+            self.completed = false;
+        }
+
+        fn is_empty(&self) -> bool {
+            self.total == 0
+        }
+    }
+
+    fn make_minecraft_downloader(instance: Root) -> MinecraftDownloader<MockDownloader> {
+        MinecraftDownloader::new(
+            PathBuf::from("/test"),
+            instance,
+            MockDownloader::new(),
+            reqwest::Client::new(),
+        )
+    }
+
+    #[test]
+    fn get_index_path_appends_assets_indexes() {
+        let result = get_index_path(&PathBuf::from("/root"), &PathBuf::from("19"));
+        assert_eq!(result, PathBuf::from("/root/assets/indexes/19"));
+    }
+
+    #[test]
+    fn get_lib_path_appends_libraries() {
+        let result = get_lib_path(&PathBuf::from("/root"), &PathBuf::from("a/b/c.jar"));
+        assert_eq!(result, PathBuf::from("/root/libraries/a/b/c.jar"));
+    }
+
+    #[test]
+    fn get_index_path_trailing_slash() {
+        let result = get_index_path(&PathBuf::from("/root/"), &PathBuf::from("1.21.json"));
+        assert_eq!(result, PathBuf::from("/root/assets/indexes/1.21.json"));
+    }
+
+    #[test]
+    fn get_lib_path_with_nested_path() {
+        let result = get_lib_path(
+            &PathBuf::from("/minecraft"),
+            &PathBuf::from("org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar"),
+        );
+        assert_eq!(
+            result,
+            PathBuf::from("/minecraft/libraries/org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar")
+        );
+    }
+
+    #[test]
+    fn prepare_libraries_filters_by_os_rules() {
+        let lib_always = Library {
+            name: "always:lib:1.0".into(),
+            downloads: Some(LibraryDownloads {
+                artifact: Artifact {
+                    path: PathBuf::from("always/lib/1.0/lib.jar"),
+                    sha1: "aaa111".into(),
+                    size: 100,
+                    url: "https://example.com/lib.jar".into(),
+                },
+                classifiers: None,
+            }),
+            rules: None,
+        };
+        let lib_disallowed = Library {
+            name: "never:lib:1.0".into(),
+            downloads: Some(LibraryDownloads {
+                artifact: Artifact {
+                    path: PathBuf::from("never/lib/1.0/lib.jar"),
+                    sha1: "bbb222".into(),
+                    size: 100,
+                    url: "https://example.com/lib.jar".into(),
+                },
+                classifiers: None,
+            }),
+            rules: Some(Box::new([Rule {
+                action: "disallow".into(),
+                os: Some(Os {
+                    name: Some(OsName::Linux),
+                    arch: None,
+                }),
+            }])),
+        };
+
+        let instance = Root {
+            arguments: Arguments {
+                game: Box::new([]),
+                jvm: Box::new([]),
+            },
+            asset_index: AssetIndex {
+                id: "test".into(),
+                sha1: "000".into(),
+                size: 0,
+                total_size: 0,
+                url: "https://example.com/index.json".into(),
+            },
+            assets: "test".into(),
+            downloads: HashMap::new(),
+            id: "test".into(),
+            java_version: JavaVersion {
+                component: "java-runtime-test".into(),
+                major_version: 21,
+            },
+            libraries: Box::new([lib_always, lib_disallowed]),
+            inherits_from: None,
+            main_class: "net.minecraft.client.main.Main".into(),
+            version_type: "release".into(),
+        };
+
+
+        let downloader = make_minecraft_downloader(instance);
+        let objects: Vec<DownloadableObject> = downloader
+            .prepare_libraries()
+            .unwrap()
+            .collect();
+
+        let names: Vec<_> = objects
+            .iter()
+            .map(|o| o.path.to_string_lossy())
+            .collect();
+        assert!(
+            names
+                .iter()
+                .any(|p| p.contains("always")),
+            "expected always-applicable library to be included, got: {names:?}"
+        );
+        assert!(
+            !names
+                .iter()
+                .any(|p| p.contains("never")),
+            "expected disallowed library to be excluded, got: {names:?}"
+        );
+    }
+
+    #[test]
+    fn prepare_libraries_includes_natives() {
+        let lib_with_natives = Library {
+            name: "natives:test:1.0".into(),
+            downloads: Some(LibraryDownloads {
+                artifact: Artifact {
+                    path: PathBuf::from("natives/main.jar"),
+                    sha1: "ccc333".into(),
+                    size: 100,
+                    url: "https://example.com/main.jar".into(),
+                },
+                classifiers: Some(Classifiers {
+                    natives_linux: Some(Artifact {
+                        path: PathBuf::from("natives/linux/native.so"),
+                        sha1: "ddd444".into(),
+                        size: 50,
+                        url: "https://example.com/native.so".into(),
+                    }),
+                    natives_windows: None,
+                    natives_macos: None,
+                }),
+            }),
+            rules: None,
+        };
+
+        let instance = Root {
+            arguments: Arguments {
+                game: Box::new([]),
+                jvm: Box::new([]),
+            },
+            asset_index: AssetIndex {
+                id: "test".into(),
+                sha1: "000".into(),
+                size: 0,
+                total_size: 0,
+                url: "https://example.com/index.json".into(),
+            },
+            assets: "test".into(),
+            downloads: HashMap::new(),
+            id: "test".into(),
+            java_version: JavaVersion {
+                component: "java-runtime-test".into(),
+                major_version: 21,
+            },
+            libraries: Box::new([lib_with_natives]),
+            inherits_from: None,
+            main_class: "net.minecraft.client.main.Main".into(),
+            version_type: "release".into(),
+        };
+
+        let downloader = make_minecraft_downloader(instance);
+        let objects: Vec<DownloadableObject> = downloader
+            .prepare_libraries()
+            .unwrap()
+            .collect();
+
+        let paths: Vec<_> = objects
+            .iter()
+            .map(|o| {
+                o.path
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect();
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.contains("main.jar")),
+            "expected main artifact, got: {paths:?}"
+        );
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.contains("native.so")),
+            "expected native classifier, got: {paths:?}"
+        );
+    }
+
+    #[test]
+    fn prepare_libraries_skips_library_without_downloads() {
+        let lib_no_downloads = Library {
+            name: "empty:lib:1.0".into(),
+            downloads: None,
+            rules: None,
+        };
+        let lib_with = Library {
+            name: "has:downloads:1.0".into(),
+            downloads: Some(LibraryDownloads {
+                artifact: Artifact {
+                    path: PathBuf::from("has/downloads.jar"),
+                    sha1: "eee555".into(),
+                    size: 100,
+                    url: "https://example.com/downloads.jar".into(),
+                },
+                classifiers: None,
+            }),
+            rules: None,
+        };
+
+        let instance = Root {
+            arguments: Arguments {
+                game: Box::new([]),
+                jvm: Box::new([]),
+            },
+            asset_index: AssetIndex {
+                id: "test".into(),
+                sha1: "000".into(),
+                size: 0,
+                total_size: 0,
+                url: "https://example.com/index.json".into(),
+            },
+            assets: "test".into(),
+            downloads: HashMap::new(),
+            id: "test".into(),
+            java_version: JavaVersion {
+                component: "java-runtime-test".into(),
+                major_version: 21,
+            },
+            libraries: Box::new([lib_no_downloads, lib_with]),
+            inherits_from: None,
+            main_class: "net.minecraft.client.main.Main".into(),
+            version_type: "release".into(),
+        };
+
+        let downloader = make_minecraft_downloader(instance);
+        let objects: Vec<DownloadableObject> = downloader
+            .prepare_libraries()
+            .unwrap()
+            .collect();
+
+        let paths: Vec<_> = objects
+            .iter()
+            .map(|o| {
+                o.path
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect();
+        assert!(
+            !paths
+                .iter()
+                .any(|p| p.contains("empty")),
+            "expected library without downloads to be skipped, got: {paths:?}"
+        );
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.contains("has")),
+            "expected library with downloads to be included, got: {paths:?}"
+        );
+    }
+
+    #[cfg(feature = "integration-tests")]
     #[tokio::test(flavor = "multi_thread")]
     pub async fn download_minecraft() -> Result<()> {
+
+        use super::super::gen_downloader::Downloader;
         let mut downloader =
             MinecraftDownloader::<Downloader>::init("/home/sergio/.minecraft", "1.20.1").await?;
 
-        let mut stdout = tokio::io::stdout();
-        let _ = init_logger();
-        let r = loop {
-            let state = if let Ok(x) = downloader.progress().await {
-                x
-            } else {
-                break None;
-            };
-
-            if let MinecraftDownloadState::Completed = state {
-                let instance_res =
-                    downloader.add_instance("/home/sergio/.minecraft", "Vanilla 1.20.1", None);
-                if let Err(err) = instance_res {
-                    warn!("{err}");
-                }
-                break Some(());
+        let _ = crate::init_logger();
+        loop {
+            match downloader.progress().await {
+                Ok(MinecraftDownloadState::Completed) => break,
+                Err(e) => return Err(e),
+                _ => {}
             }
-            stdout
-                .write_all(format!("{:?}  [{:?}]\n", state, downloader.requests_left()).as_bytes())
-                .await?;
-            tokio::io::stdout()
-                .flush()
-                .await?;
-        };
-
-        let exits = std::env::home_dir()
-            .unwrap()
-            .join(".minecraft/versions/1.20.1/1.20.1.jar")
-            .exists();
-
-        if r.is_some() {
-            assert!(exits);
         }
+
+        let client_path = PathBuf::from("/home/sergio/.minecraft/versions/1.20.1/1.20.1.jar");
+        assert!(client_path.exists(), "Client jar was not downloaded");
         Ok(())
     }
 }

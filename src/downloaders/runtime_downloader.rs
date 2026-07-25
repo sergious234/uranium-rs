@@ -11,7 +11,8 @@
 //!
 //! ## Example
 //!
-//! Here's a basic example of how to use the `RuntimeDownloader` to download a runtime.
+//! Here's a basic example of how to use the `RuntimeDownloader` to download a
+//! runtime.
 //!
 //! ```no_run
 //! # use uranium_rs::downloaders::RuntimeDownloader;
@@ -20,21 +21,20 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     let mut downloader = RuntimeDownloader::new("java-runtime-beta".to_string());
-//!     downloader.download().await?;
+//!     downloader.start().await?;
 //!     println!("Runtime downloaded and installed successfully!");
 //!     Ok(())
 //! }
 //! ```
 
-use std::fs;
-
 use mine_data_structs::minecraft::RUNTIMES_URL;
-use mine_data_structs::minecraft::{get_minecraft_path, RuntimeFiles, Runtimes};
+use mine_data_structs::minecraft::{RuntimeFiles, Runtimes, get_minecraft_path};
 use reqwest::Client;
 
 use super::DownloadableObject;
 use crate::downloaders::{Downloader, FileDownloader, HashType};
 use crate::error::{Result, UraniumError};
+use crate::variables::constants::EXECUTABLE_MODE;
 
 /// A downloader specifically for Java runtimes.
 pub struct RuntimeDownloader {
@@ -55,7 +55,7 @@ impl RuntimeDownloader {
     /// * There are issues with the network requests to Mojang's servers.
     /// * The requested runtime is not found in the manifest.
     /// * There are issues with creating directories or writing files to disk.
-    pub async fn download(&mut self) -> Result<()> {
+    pub async fn start(&mut self) -> Result<()> {
         let client = Client::new();
         let x = client
             .get(RUNTIMES_URL)
@@ -64,7 +64,8 @@ impl RuntimeDownloader {
             .text()
             .await?;
 
-        let val: Runtimes = serde_json::from_str(&x).unwrap();
+        let val: Runtimes = serde_json::from_str(&x)
+            .map_err(|e| UraniumError::other(format!("Failed to parse runtimes JSON: {e}")))?;
 
         let runtime_url = val
             .linux
@@ -85,27 +86,17 @@ impl RuntimeDownloader {
 
         let os = std::env::consts::OS;
 
-        let minecraft_root = get_minecraft_path().unwrap();
+        let minecraft_root = get_minecraft_path()
+            .ok_or(UraniumError::other("Could not determine minecraft path"))?;
         let runtime_path =
             minecraft_root.join(format!("runtime/{}/{}/{}", self.runtime, os, self.runtime));
 
-        let executables_files = runtime_files
+        let executables: Vec<_> = runtime_files
             .files
             .iter()
             .filter(|(_, item)| item.executable)
-            .map(|(s, _)| runtime_path.join(s));
-
-        #[cfg(target_os = "linux")]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            executables_files
-                .flat_map(fs::metadata)
-                .for_each(|metadata| {
-                    metadata
-                        .permissions()
-                        .set_mode(0o766)
-                });
-        }
+            .map(|(s, _)| runtime_path.join(s))
+            .collect();
 
         let objects: Vec<DownloadableObject> = runtime_files
             .files
@@ -115,22 +106,29 @@ impl RuntimeDownloader {
                 let raw = s
                     .downloads
                     .remove("raw")
-                    .unwrap();
-                (runtime_path.join(k), raw.url, raw.sha1)
+                    .ok_or(UraniumError::other(format!(
+                        "No raw download for runtime file {k:?}"
+                    )))?;
+                Ok::<_, UraniumError>(DownloadableObject::new(
+                    &raw.url,
+                    &runtime_path.join(k),
+                    Some(HashType::Sha1(raw.sha1.to_string())),
+                ))
             })
-            .map(|(k, s, h)| DownloadableObject::new(&s, &k, Some(HashType::Sha1(h.to_string()))))
-            .collect();
+            .collect::<Result<_>>()?;
 
-        Downloader::new(objects).complete().await?;
+        let mut dl = Downloader::new();
+        dl.add_objects(objects);
+        dl.start().await?;
 
         #[cfg(target_os = "linux")]
         {
             use std::os::unix::fs::PermissionsExt;
-            let java_path = runtime_path.join("bin").join("java");
-            std::fs::set_permissions(&java_path, std::fs::Permissions::from_mode(0o766))?;
+            for path in &executables {
+                std::fs::set_permissions(path, std::fs::Permissions::from_mode(EXECUTABLE_MODE))?;
+            }
         }
 
         Ok(())
-
     }
 }

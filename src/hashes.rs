@@ -1,11 +1,9 @@
 use std::fmt::Write;
-use std::{fs, io::Read, path::Path};
+use std::io::Read;
+use std::{fs, path::Path};
 
 use murmurhash32::murmurhash2;
 use sha1::{Digest, Sha1};
-
-// TODO:
-// Remove unwraps
 
 pub(crate) fn bytes_to_hex(bytes: &[u8]) -> String {
     let mut hex_string = String::with_capacity(bytes.len() * 2);
@@ -17,23 +15,19 @@ pub(crate) fn bytes_to_hex(bytes: &[u8]) -> String {
 
 fn get_sha1_from_file<I: AsRef<Path>>(file_path: I) -> String {
     let mut hasher = Sha1::new();
-    let mut file = fs::File::open(&file_path).unwrap();
+    let mut file = fs::File::open(&file_path).expect("get_sha1_from_file: failed to open file");
 
-    let metadata = fs::metadata(&file_path).unwrap();
+    let mut buffer = [0u8; 65536];
+    loop {
+        let n = file
+            .read(&mut buffer)
+            .expect("get_sha1_from_file: failed to read file");
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
 
-    // let mut buffer = Vec::with_capacity(
-    //     metadata
-    //         .len()
-    //         .try_into()
-    //         .unwrap_or_default(),
-    // ); //vec![0; metadata.len() as usize];
-
-    let mut buffer = vec![0; metadata.len() as usize];
-    buffer.clear();
-
-    let _ = file.read_to_end(&mut buffer);
-
-    hasher.update(buffer);
     let temp = hasher.finalize().to_vec();
     bytes_to_hex(&temp)
 }

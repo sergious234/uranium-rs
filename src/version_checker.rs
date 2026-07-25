@@ -157,7 +157,7 @@ impl InstallationVerifier {
             error!("Client doesn't exist: {client_path:?}");
             Some(client)
         } else if let Ok(false) = verify_file_hash(&client_path, &client.sha1) {
-            error!("Wrong hash for {:?}, {}", &client_path, &client.sha1);
+            error!("Wrong hash for {:?}, {}", client_path, client.sha1);
             Some(client)
         } else {
             None
@@ -266,7 +266,7 @@ impl InstallationVerifier {
     ///
     /// Returns:
     /// Err(UraniumError) If something went wrong
-    /// Ok(Box<[&str]>) A boxed array of the names of the wrong files, if the
+    /// Ok(Box<[&str]>) A boxed slice with the names of the wrong files, if the
     /// box is empty then all objects are ok.
     fn verify_objects(&self) -> Box<[&ObjectData]> {
         use rayon::prelude::*;
@@ -294,7 +294,7 @@ impl InstallationVerifier {
                 }
             })
             .collect::<Vec<&ObjectData>>();
-        Box::from(bad_objects)
+        bad_objects.into_boxed_slice()
     }
 }
 
@@ -411,16 +411,16 @@ fn verify_file_hash(file_path: &Path, expected_hash: &str) -> Result<bool> {
     Ok(actual_hash.to_lowercase() == expected_hash.to_lowercase())
 }
 
+#[cfg(feature = "integration-tests")]
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Condvar, LazyLock, Mutex};
 
+    use super::*;
     use crate::{
         downloaders::{Downloader, MinecraftDownloader},
         variables::constants::TEMP_DIR,
     };
-
-    use super::*;
 
     static PAIR: LazyLock<Arc<(Mutex<bool>, Condvar)>> =
         LazyLock::new(|| Arc::new((Mutex::new(false), Condvar::new())));
@@ -466,10 +466,12 @@ mod tests {
         let checker = InstallationVerifier::new(&TEMP_DIR, VERSION)
             .await
             .unwrap();
-        if let Err(e) =
-            std::fs::remove_file("/home/sergio/.local/state/uranium/versions/1.21.1/1.21.1.jar")
-        {
-            panic!("Could not remove {e}");
+        let client_path = TEMP_DIR
+            .join("versions")
+            .join(VERSION)
+            .join(format!("{VERSION}.jar"));
+        if let Err(e) = std::fs::remove_file(&client_path) {
+            panic!("Could not remove {client_path:?}: {e}");
         }
         let result = checker.verify();
         assert_eq!(result.total_problems(), 1);

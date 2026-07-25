@@ -1,9 +1,8 @@
 use std::path::Path;
 
+use crate::downloaders::get_index_path;
 use crate::downloaders::{Downloader, FileDownloader, get_lib_path};
 use crate::error::Result;
-
-use crate::downloaders::get_index_path;
 use crate::{downloaders::DownloadableObject, version_checker::VersionCheckResult};
 
 pub struct InstallationFixer {
@@ -23,8 +22,9 @@ impl InstallationFixer {
     pub async fn fix_installation(&mut self) -> Result<()> {
         let files = std::mem::take(&mut self.data);
 
-        let mut downloader = Downloader::new(files);
-        downloader.complete().await
+        let mut downloader = Downloader::new();
+        downloader.add_objects(files);
+        downloader.start().await
     }
 
     fn add_objects(&mut self, check_result: &VersionCheckResult, installation_path: &Path) {
@@ -54,7 +54,10 @@ impl InstallationFixer {
     }
 
     fn add_index(&mut self, check_result: &VersionCheckResult, installation_path: &Path) {
-        if let Some(mut idx) = check_result.index.map(DownloadableObject::from) {
+        if let Some(mut idx) = check_result
+            .index
+            .map(DownloadableObject::from)
+        {
             idx.path = get_index_path(installation_path, &idx.path);
             self.data.push(idx);
         }
@@ -64,7 +67,9 @@ impl InstallationFixer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mine_data_structs::minecraft::{Artifact, AssetIndex, Library, LibraryDownloads, ObjectData};
+    use crate::mine_data_structs::minecraft::{
+        Artifact, AssetIndex, Library, LibraryDownloads, ObjectData,
+    };
 
     fn make_library(path: &str, sha1: &str) -> Library {
         Library {
@@ -75,14 +80,18 @@ mod tests {
                     sha1: sha1.into(),
                     size: 1024,
                     url: "https://example.com/lib.jar".into(),
-                }, classifiers: None
+                },
+                classifiers: None,
             }),
             rules: None,
         }
     }
 
     fn make_object(hash: &str) -> ObjectData {
-        ObjectData { hash: hash.into(), size: 512 }
+        ObjectData {
+            hash: hash.into(),
+            size: 512,
+        }
     }
 
     fn make_index(id: &str, sha1: &str) -> AssetIndex {
@@ -109,17 +118,24 @@ mod tests {
         assert_eq!(fixer.data.len(), 1);
         let entry = &fixer.data[0];
         assert!(
-            entry.path.starts_with("/tmp/test"),
+            entry
+                .path
+                .starts_with("/tmp/test"),
             "expected path to start with installation path, got: {:?}",
             entry.path,
         );
         assert!(
-            entry.path.to_string_lossy().contains("a1b2c3d4e5f6"),
+            entry
+                .path
+                .to_string_lossy()
+                .contains("a1b2c3d4e5f6"),
             "expected path to contain the object hash, got: {:?}",
             entry.path,
         );
         assert!(
-            entry.url.contains("resources.download.minecraft.net"),
+            entry
+                .url
+                .contains("resources.download.minecraft.net"),
             "expected URL to be a Minecraft resource URL, got: {}",
             entry.url,
         );
@@ -140,12 +156,17 @@ mod tests {
         assert_eq!(fixer.data.len(), 1);
         let entry = &fixer.data[0];
         assert!(
-            entry.path.starts_with("/tmp/test/libraries"),
+            entry
+                .path
+                .starts_with("/tmp/test/libraries"),
             "expected path under libraries/, got: {:?}",
             entry.path,
         );
         assert!(
-            entry.path.to_string_lossy().contains("net/minecraft/client/1.21/client.jar"),
+            entry
+                .path
+                .to_string_lossy()
+                .contains("net/minecraft/client/1.21/client.jar"),
             "expected path to contain artifact path, got: {:?}",
             entry.path,
         );
@@ -167,10 +188,33 @@ mod tests {
         let fixer = InstallationFixer::new(result, "/tmp/test");
 
         assert_eq!(fixer.data.len(), 3);
-        let paths: Vec<_> = fixer.data.iter().map(|d| d.path.to_string_lossy().to_string()).collect();
-        assert!(paths.iter().any(|p| p.contains("aaa111")),     "object missing");
-        assert!(paths.iter().any(|p| p.contains("org/example")), "library missing");
-        assert!(paths.iter().any(|p| p.contains("1.21")),       "index id missing");
+        let paths: Vec<_> = fixer
+            .data
+            .iter()
+            .map(|d| {
+                d.path
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect();
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.contains("aaa111")),
+            "object missing"
+        );
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.contains("org/example")),
+            "library missing"
+        );
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.contains("1.21")),
+            "index id missing"
+        );
     }
 
     #[tokio::test]
@@ -185,7 +229,11 @@ mod tests {
 
         let outcome = fixer.fix_installation().await;
 
-        assert!(outcome.is_ok(), "expected Ok(()) with no downloads, got: {:?}", outcome);
+        assert!(
+            outcome.is_ok(),
+            "expected Ok(()) with no downloads, got: {:?}",
+            outcome
+        );
         assert!(fixer.data.is_empty());
     }
 }

@@ -6,14 +6,12 @@ use std::{
 
 use log::error;
 use mine_data_structs::rinth::{RinthModpack, RinthVersion};
-
-use crate::variables::constants::OVERRIDES_FOLDER;
-use crate::{
-    error::Result, error::UraniumError, hashes::rinth_hash,
-    variables::constants::RINTH_JSON,
-};
-
 use rrhodium::{SearchBuilder, SearchType};
+
+use crate::variables::constants::{MRPACK, OVERRIDES_FOLDER};
+use crate::{
+    error::Result, error::UraniumError, hashes::rinth_hash, variables::constants::RINTH_JSON,
+};
 
 #[derive(Clone, Copy)]
 pub enum State {
@@ -70,6 +68,17 @@ pub struct ModpackMaker {
 
 impl ModpackMaker {
     pub fn new<I: AsRef<Path>, J: AsRef<Path>>(path: I, modpack_name: J) -> Self {
+        let mut modpack_name = modpack_name
+            .as_ref()
+            .to_path_buf();
+        if !modpack_name
+            .extension()
+            .is_some_and(|e| {
+                e == MRPACK
+            })
+        {
+            modpack_name.set_extension(MRPACK);
+        }
         Self {
             path: path.as_ref().to_path_buf(),
             state: InnerState::Reading,
@@ -77,9 +86,7 @@ impl ModpackMaker {
                 .user_agent("uranium-rs/modpack maker contact: sergious234@gmail.com")
                 .build()
                 .unwrap(),
-            modpack_path: modpack_name
-                .as_ref()
-                .to_path_buf(),
+            modpack_path: modpack_name,
         }
     }
 
@@ -165,11 +172,9 @@ impl ModpackMaker {
             }
         };
 
-        let hashes_names = mods.map(|path| {
-            HashPath {
-                hash: rinth_hash(&path),
-                path: path.to_owned(),
-            }
+        let hashes_names = mods.map(|path| HashPath {
+            hash: rinth_hash(&path),
+            path: path.to_owned(),
         });
 
         Ok(hashes_names)

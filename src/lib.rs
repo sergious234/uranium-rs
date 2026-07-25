@@ -22,7 +22,7 @@
 //!
 //! let mut rinth = RinthDownloader::<Downloader>::new("path", "destination").unwrap();
 //!
-//! if let Err(e) = rinth.complete().await {
+//! if let Err(e) = rinth.start().await {
 //!     println!("Something went wrong: {e}")
 //! } else {
 //!     println!("Download complete!")
@@ -41,15 +41,15 @@ use downloaders::{
 };
 use error::{Result, UraniumError};
 use log::info;
+pub use mine_data_structs;
 use modpack_maker::{ModpackMaker, State};
 use variables::constants::*;
-pub use mine_data_structs;
 
 pub mod downloaders;
 pub mod error;
+pub mod installation_fixer;
 pub mod modpack_maker;
 pub mod version_checker;
-pub mod installation_fixer;
 
 mod code_functions;
 mod hashes;
@@ -102,7 +102,7 @@ pub async fn curse_pack_download<I: AsRef<Path>, J: AsRef<Path>>(
     let mut curse_downloader =
         CurseDownloader::<Downloader>::new(&file_path, &destination_path).await?;
     curse_downloader
-        .complete()
+        .start()
         .await?;
     Ok(())
 }
@@ -125,7 +125,7 @@ pub async fn rinth_pack_download<I: AsRef<Path>, J: AsRef<Path>>(
 ) -> Result<()> {
     let mut rinth_downloader = RinthDownloader::<Downloader>::new(&file_path, &destination_path)?;
     rinth_downloader
-        .complete()
+        .start()
         .await?;
     Ok(())
 }

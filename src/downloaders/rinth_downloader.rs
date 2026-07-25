@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use log::info;
-use mine_data_structs::rinth::{load_rinth_pack, RinthModpack};
+use mine_data_structs::rinth::{RinthModpack, load_rinth_pack};
 
 use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader};
 use crate::{
@@ -36,7 +36,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
     ///
     /// # Example
     /// ```no_run
-    ///
+    /// 
     /// use uranium_rs::downloaders::{RinthDownloader, Downloader};
     /// use uranium_rs::error::Result;
     ///
@@ -48,7 +48,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
     ///     "/installation/path"
     /// )?;
     ///
-    /// rinth_downloader.complete().await?;
+    /// rinth_downloader.start().await?;
     /// Ok(())
     /// # }
     /// ```
@@ -79,7 +79,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
                 )
             });
 
-        let mut downloader = T::new(vec![]);
+        let mut downloader = T::new();
         downloader.add_objects(objs);
 
         Ok(RinthDownloader {
@@ -157,15 +157,10 @@ impl<T: FileDownloader> RinthDownloader<T> {
         }
     }
 
-    /// This method will start the download and make progress until
-    /// the download is completed.
-    ///
-    /// # Errors
-    /// This function can return an `Err(UraniumError)` like `progress` can.
-    pub async fn complete(&mut self) -> Result<()> {
+    pub async fn start(&mut self) -> Result<()> {
         let r = self
             .gen_downloader
-            .complete()
+            .start()
             .await;
         remove_temp_pack();
         r

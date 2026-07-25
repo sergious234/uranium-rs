@@ -10,14 +10,16 @@ pub fn N_THREADS() -> usize {
     }
 }
 
-use crate::{
-    error::{Result, UraniumError},
-    variables::constants::TEMP_DIR,
-};
-use log::{error, warn};
 use std::{
     fs::{File, create_dir, remove_dir_all},
     path::Path,
+};
+
+use log::{error, warn};
+
+use crate::{
+    error::{Result, UraniumError},
+    variables::constants::TEMP_DIR,
 };
 
 #[allow(clippy::borrow_interior_mutable_const)]

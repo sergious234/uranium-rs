@@ -1,3 +1,5 @@
+#![cfg(feature = "integration-tests")]
+
 use std::path::PathBuf;
 
 use uranium_rs::downloaders::{Downloader, MinecraftDownloader};
@@ -17,7 +19,9 @@ pub async fn test1() {
     let res = md.start().await;
 
     if res.is_ok() {
-        let x = InstallationVerifier::new(&PathBuf::from(PATH), VERSION).await.unwrap();
+        let x = InstallationVerifier::new(&PathBuf::from(PATH), VERSION)
+            .await
+            .unwrap();
         println!("Verifying minecraft...");
         let res = x.verify();
         println!("Wrong files: {}", res.total_problems());

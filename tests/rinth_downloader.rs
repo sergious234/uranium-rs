@@ -1,3 +1,5 @@
+#![cfg(feature = "integration-tests")]
+
 use std::path::PathBuf;
 
 use uranium_rs::downloaders::{Downloader, RinthDownloader};

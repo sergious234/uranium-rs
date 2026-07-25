@@ -44,7 +44,6 @@ impl<T: FileDownloader> CurseDownloader<T> {
             &TEMP_DIR
                 .join(CURSE_JSON)
                 .to_string_lossy()
-                .to_string(),
         )
         .expect("Couldnt load the pack");
 
@@ -90,8 +89,11 @@ impl<T: FileDownloader> CurseDownloader<T> {
             ));
         }
 
+        let mut gen_downloader = T::new();
+        gen_downloader.add_objects(files);
+
         Ok(CurseDownloader {
-            gen_downloader: T::new(files),
+            gen_downloader,
             modpack: curse_pack,
         })
     }
@@ -104,11 +106,10 @@ impl<T: FileDownloader> CurseDownloader<T> {
             .await
     }
 
-    /// This function will call `FileDownloader::complete' and returns it's
-    /// output.
-    pub async fn complete(&mut self) -> Result<()> {
+    /// Delegates to the inner downloader's `start`.
+    pub async fn start(&mut self) -> Result<()> {
         self.gen_downloader
-            .complete()
+            .start()
             .await
     }
 
@@ -169,8 +170,6 @@ impl<T: FileDownloader> CurseDownloader<T> {
 // TODO: This is repeated in RinthDownloader, maybe put this functions in
 // code_functions.rs ?
 //
-// Also how requests are done should look like Downloader where tasks are
-// spawned.
 impl<T: FileDownloader> CurseDownloader<T> {
     async fn get_mod_responses(curse_req: &reqwest::Client, files_ids: &[String]) -> Vec<Response> {
         let mut responses: Vec<Response> = Vec::with_capacity(files_ids.len());
