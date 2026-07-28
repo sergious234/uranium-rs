@@ -31,6 +31,11 @@ rrhodium = "1.0.0"
 miniserde = "0.1.42"
 serde_json = "1.0.143"
 
+[features]
+integration-tests = []
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["async_tokio"] }
 
 [[test]]
 name = "maker"
@@ -47,3 +52,13 @@ path = "tests/runtime_downloader.rs"
 [[test]]
 name = "installation_verification"
 path = "tests/installation_verification.rs"
+
+[[bench]]
+name = "verification"
+path = "benches/verification.rs"
+harness = false
+
+[[bench]]
+name = "download"
+path = "benches/download.rs"
+harness = false
