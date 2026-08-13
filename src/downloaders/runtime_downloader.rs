@@ -57,25 +57,17 @@ impl RuntimeDownloader {
     /// * There are issues with creating directories or writing files to disk.
     pub async fn start(&mut self) -> Result<()> {
         let client = Client::new();
-        let x = client
+        let runtimes = client
             .get(RUNTIMES_URL)
             .send()
             .await?
             .text()
             .await?;
 
-        let val: Runtimes = serde_json::from_str(&x)
+        let val: Runtimes = serde_json::from_str(&runtimes)
             .map_err(|e| UraniumError::other(format!("Failed to parse runtimes JSON: {e}")))?;
 
-        let runtime_url = val
-            .linux
-            .get(&self.runtime)
-            .ok_or(UraniumError::other("No runtime found"))?
-            .first()
-            .ok_or(UraniumError::other(
-                "Mojang doesn't know about their own runtime",
-            ))?
-            .get_url();
+        let runtime_url = self.get_runtime_url(&val)?;
 
         let runtime_files: RuntimeFiles = client
             .get(runtime_url)
@@ -91,31 +83,29 @@ impl RuntimeDownloader {
         let runtime_path =
             minecraft_root.join(format!("runtime/{}/{}/{}", self.runtime, os, self.runtime));
 
-        let executables: Vec<_> = runtime_files
+        let executables = runtime_files
             .files
             .iter()
             .filter(|(_, item)| item.executable)
-            .map(|(s, _)| runtime_path.join(s))
-            .collect();
+            .map(|(s, _)| runtime_path.join(s));
 
-        let objects: Vec<DownloadableObject> = runtime_files
+        let objects = runtime_files
             .files
-            .into_iter()
+            .iter()
             .filter(|(_, s)| s.file_type == "file")
-            .map(|(k, mut s)| {
+            .flat_map(|(k, s)| -> Result<DownloadableObject> {
                 let raw = s
                     .downloads
-                    .remove("raw")
+                    .get("raw")
                     .ok_or(UraniumError::other(format!(
                         "No raw download for runtime file {k:?}"
                     )))?;
-                Ok::<_, UraniumError>(DownloadableObject::new(
+                Ok(DownloadableObject::new(
                     &raw.url,
                     &runtime_path.join(k),
                     Some(HashType::Sha1(raw.sha1.to_string())),
                 ))
-            })
-            .collect::<Result<_>>()?;
+            });
 
         let mut dl = Downloader::new();
         dl.add_objects(objects);
@@ -124,11 +114,24 @@ impl RuntimeDownloader {
         #[cfg(target_os = "linux")]
         {
             use std::os::unix::fs::PermissionsExt;
-            for path in &executables {
+            for path in executables {
                 std::fs::set_permissions(path, std::fs::Permissions::from_mode(EXECUTABLE_MODE))?;
             }
         }
 
         Ok(())
+    }
+
+    fn get_runtime_url<'a>(&mut self, val: &'a Runtimes) -> Result<&'a str> {
+        let runtime_url = val
+            .linux
+            .get(&self.runtime)
+            .ok_or(UraniumError::other("No runtime found"))?
+            .first()
+            .ok_or(UraniumError::other(
+                "Mojang doesn't know about their own runtime",
+            ))?
+            .get_url();
+        Ok(runtime_url)
     }
 }

@@ -209,7 +209,7 @@ impl InstallationVerifier {
 
         let h = format!("{:x}", hasher.finalize());
         if index.sha1 != h {
-            error!("Wrong hash for {:?}, {}-{}", &index_path, &index.sha1, h);
+            error!("Wrong hash for {:?}, {}-{}", index_path, index.sha1, h);
             return Some(index);
         }
 

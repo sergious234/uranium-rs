@@ -22,6 +22,7 @@ use crate::{code_functions::N_THREADS, error::UraniumError};
 
 const BUFFER_SIZER: usize = 1024 * 512;
 const MAX_RETRIES: u8 = 3;
+const DEFAULT_CHUNK_SIZE: usize = 32;
 
 /// A trait for asynchronous file downloading.
 ///
@@ -313,8 +314,6 @@ impl Downloader {
     }
 
     async fn get_next_chunk(&mut self) -> Vec<DownloadableObject> {
-        const DEFAULT_CHUNK_SIZE: usize = 16;
-
         let remaining = self.files.len() - self.cursor;
         if remaining == 0 {
             return vec![];
