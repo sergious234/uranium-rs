@@ -1,4 +1,5 @@
 use reqwest::header::InvalidHeaderValue;
+use serde_json::Error as SerdeError;
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -42,6 +43,8 @@ pub enum UraniumError {
     Other,
     #[error("Error: `{0}`")]
     OtherWithReason(String),
+    #[error("Serialization error: `{0}`")]
+    SerdeError(SerdeError),
 }
 
 impl UraniumError {
@@ -75,6 +78,12 @@ impl From<std::io::Error> for UraniumError {
 impl From<zip::result::ZipError> for UraniumError {
     fn from(value: zip::result::ZipError) -> Self {
         UraniumError::ZipError(value)
+    }
+}
+
+impl From<SerdeError> for UraniumError {
+    fn from(value: SerdeError) -> Self {
+        UraniumError::SerdeError(value)
     }
 }
 
