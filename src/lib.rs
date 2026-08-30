@@ -17,16 +17,17 @@
 //! one.
 //!
 //! ``` rust no_run
-//! # async fn x() {
+//! # async fn x() -> uranium_rs::error::Result<()> {
 //! use uranium_rs::downloaders::{Downloader, RinthDownloader};
 //!
-//! let mut rinth = RinthDownloader::<Downloader>::new("path", "destination").unwrap();
+//! let mut rinth = RinthDownloader::<Downloader>::new("path", "destination")?;
 //!
 //! if let Err(e) = rinth.start().await {
 //!     println!("Something went wrong: {e}")
 //! } else {
 //!     println!("Download complete!")
 //! }
+//! # Ok(())
 //! # }
 //! ```
 //!
@@ -204,7 +205,7 @@ pub fn init_logger() -> Result<()> {
             File::create(latest_log_file)?,
         ),
     ])
-    .unwrap();
+    .map_err(|e| UraniumError::OtherWithReason(e.to_string()))?;
     Ok(())
 }
 
