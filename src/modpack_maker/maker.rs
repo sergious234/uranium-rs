@@ -194,7 +194,7 @@ impl ModpackMaker {
             let path = entry.path();
             let name = path
                 .strip_prefix(&self.path)
-                .unwrap();
+                .map_err(|_| UraniumError::OtherWithReason("file outside modpack path".to_string()))?;
 
             if path.is_file() {
                 Self::add_file_to_zip(&mut zip, path, options)?;
@@ -211,16 +211,20 @@ impl ModpackMaker {
             match value {
                 SearchResult::Found(rv) => rinth_pack.add_mod((*rv).into()),
                 SearchResult::NotFound(m) => {
+                    let file_name = m
+                        .path
+                        .file_name()
+                        .ok_or(UraniumError::OtherWithReason("mod has no file name".to_string()))?;
                     let path = PathBuf::new()
                         .join(OVERRIDES_FOLDER)
-                        .join(m.path.file_name().unwrap());
+                        .join(file_name);
                     Self::add_file_to_zip_path(&mut zip, path, &m.path, options)?;
                 }
             }
         }
 
         zip.start_file(RINTH_JSON, options)?;
-        serde_json::to_writer(&mut zip, &rinth_pack).expect("Pack can't be serialized");
+        serde_json::to_writer(&mut zip, &rinth_pack)?;
 
         zip.finish()?;
         log::info!("Modpack written successfully!");

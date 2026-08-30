@@ -5,7 +5,7 @@ use std::sync::RwLock;
 pub static TEMP_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     dirs::state_dir()
         .map(|d| d.join("uranium"))
-        .unwrap()
+        .unwrap_or_else(|| std::env::temp_dir().join("uranium"))
 });
 
 /// In case NTHREADS cant be read this value will be returned
