@@ -162,22 +162,25 @@ impl ModpackMaker {
 
         let mods_path = self.path.join("mods/");
 
-        let mods = match read_dir(&mods_path) {
-            Ok(e) => e
-                .into_iter()
-                .map(|f| f.unwrap().path()),
+        let entries = match read_dir(&mods_path) {
+            Ok(e) => e,
             Err(e) => {
                 error!("Error reading the directory: {}", e);
                 return Err(UraniumError::IOError(e));
             }
         };
 
-        let hashes_names = mods.map(|path| HashPath {
-            hash: rinth_hash(&path),
-            path: path.to_owned(),
-        });
+        let mut hashes = Vec::new();
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let hash = rinth_hash(&path)?;
+            hashes.push(HashPath {
+                hash,
+                path: path.to_owned(),
+            });
+        }
 
-        Ok(hashes_names)
+        Ok(hashes.into_iter())
     }
 
     fn write_modpack(&self, data: HashMap<String, SearchResult>) -> Result<()> {

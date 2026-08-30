@@ -1189,14 +1189,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "murmurhash32"
-version = "0.2.0"
-source = "git+https://github.com/gorilla-devs/murmurhash32.git#4dfdc49b727581bbdcad4a2315452a2c28db6093"
-dependencies = [
- "byteorder",
-]
-
-[[package]]
 name = "native-tls"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2143,7 +2135,6 @@ dependencies = [
  "log",
  "mine_data_structs",
  "miniserde",
- "murmurhash32",
  "rayon",
  "reqwest",
  "rrhodium",

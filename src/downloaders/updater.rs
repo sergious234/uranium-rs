@@ -33,8 +33,9 @@ pub async fn update_modpack<I: AsRef<Path>>(minecraft_path: I) -> Result<()> {
     let mods_path = PathBuf::from(minecraft_path.as_ref()).join("mods/");
     let mods_names = std::fs::read_dir(&mods_path)?;
     let mods_hashes = mods_names
-        .map(|f| rinth_hash(f.unwrap().path().as_path()))
-        .collect::<Vec<String>>();
+        .flatten()
+        .map(|f| rinth_hash(f.path().as_path()))
+        .collect::<Result<Vec<String>>>()?;
 
     let updates = get_updates(&mods_hashes).await?;
 

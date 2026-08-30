@@ -43,8 +43,7 @@ pub struct InstallationVerifier {
 impl InstallationVerifier {
     pub async fn new(minecraft_dir: &Path, version_id: &str) -> Result<Self> {
         let instances = list_instances()
-            .await
-            .unwrap();
+            .await?;
 
         let instance_url = instances
             .get_instance_url(version_id)
@@ -407,7 +406,7 @@ fn verify_file_hash(file_path: &Path, expected_hash: &str) -> Result<bool> {
                 .to_string(),
         ));
     }
-    let actual_hash = rinth_hash(file_path);
+    let actual_hash = rinth_hash(file_path)?;
     Ok(actual_hash.to_lowercase() == expected_hash.to_lowercase())
 }
 
