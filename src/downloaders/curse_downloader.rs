@@ -45,7 +45,7 @@ impl<T: FileDownloader> CurseDownloader<T> {
                 .join(CURSE_JSON)
                 .to_string_lossy()
         )
-        .expect("Couldnt load the pack");
+        .ok_or(UraniumError::WrongModpackFormat)?;
 
         let files_ids: Vec<String> = curse_pack
             .get_files()

@@ -228,11 +228,7 @@ impl FileDownloader for Downloader {
     fn new() -> Self {
         info!("{} available permits", N_THREADS());
 
-        let client = reqwest::ClientBuilder::new()
-            .timeout(std::time::Duration::from_secs(30))
-            .connect_timeout(std::time::Duration::from_secs(10))
-            .build()
-            .expect("Error while creating the Downloader client, please report this error.");
+        let client = reqwest::Client::new();
 
         Downloader {
             files: vec![],
@@ -276,6 +272,7 @@ impl FileDownloader for Downloader {
             Err(e) => return Err(e),
             Ok(_) => {}
         }
+        info!("Reporting state");
         Ok(DownloadState::Downloading)
     }
 

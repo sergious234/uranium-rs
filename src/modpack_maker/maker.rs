@@ -82,10 +82,7 @@ impl ModpackMaker {
         Self {
             path: path.as_ref().to_path_buf(),
             state: InnerState::Reading,
-            client: reqwest::ClientBuilder::new()
-                .user_agent("uranium-rs/modpack maker contact: sergious234@gmail.com")
-                .build()
-                .unwrap(),
+            client: reqwest::Client::new(),
             modpack_path: modpack_name,
         }
     }
