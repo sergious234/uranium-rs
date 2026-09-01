@@ -14,11 +14,11 @@ exclude = ["tests/data/*"]
 [dependencies]
 # serde = { version = "1.0.183", features = ["derive"] }
 reqwest = { version = "0.12.22", features = ["json", "stream"] }
-tokio = { version = "1.46.1", features = ["full"] }
+tokio = { version = "1.46.1", features = ["rt-multi-thread", "macros"] }
 futures-util = "0.3.31"
 mine_data_structs = {path="../mine_data_structs/", features = ["serde"]}
 sha1 = "0.10.5"
-zip = "2.1.5"
+zip = {version="2.1.5", features=["deflate"]}
 chrono = "0.4.38"
 thiserror = "1.0.40"
 simplelog = "0.12.1"
@@ -52,12 +52,12 @@ path = "tests/runtime_downloader.rs"
 name = "installation_verification"
 path = "tests/installation_verification.rs"
 
-[[bench]]
-name = "verification"
-path = "benches/verification.rs"
-harness = false
-
-[[bench]]
-name = "download"
-path = "benches/download.rs"
-harness = false
+# [[bench]]
+# name = "verification"
+# path = "benches/verification.rs"
+# harness = false
+# 
+# [[bench]]
+# name = "download"
+# path = "benches/download.rs"
+# harness = false

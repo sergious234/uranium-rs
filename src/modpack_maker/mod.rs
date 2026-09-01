@@ -1,5 +1,38 @@
 mod maker;
+use std::path::Path;
+use crate::error::Result;
+use log::info;
+
 pub use maker::{ModpackMaker, State};
+
+/// # Easy to go function
+///
+/// This function will make a Modpack from the
+/// given path.
+///
+/// # Errors
+/// This function will return a `MakeError` in case the modpack can't
+/// be made for any reason.
+pub async fn make_modpack<I: AsRef<Path>, J: AsRef<Path>>(
+    minecraft_path: I,
+    modpack_name: J,
+) -> Result<()> {
+    let mut maker = ModpackMaker::new(&minecraft_path, modpack_name);
+    let mut i = 0;
+    loop {
+        match maker.progress().await {
+            Ok(State::Finish) => return Ok(()),
+            Err(e) => return Err(e),
+            _ => {
+                info!("{}", i);
+                i += 1;
+            }
+        }
+    }
+
+    //ModpackMaker::make(&minecraft_path).await
+}
+
 /*
 
     TODO:

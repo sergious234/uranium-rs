@@ -5,7 +5,8 @@ use mine_data_structs::rinth::{RinthModpack, load_rinth_pack};
 
 use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader};
 use crate::{
-    code_functions::{N_THREADS, remove_temp_pack, unzip_temp_pack},
+    code_functions::{num_threads, remove_temp_pack, unzip_temp_pack},
+    downloaders::Downloader,
     error::{Result, UraniumError},
     variables::constants::{RINTH_JSON, TEMP_DIR},
 };
@@ -26,7 +27,7 @@ use crate::{
 /// # }
 /// ```
 pub struct RinthDownloader<T: FileDownloader> {
-    gen_downloader: T,
+    downloader: T,
     modpack: RinthModpack,
 }
 
@@ -36,12 +37,12 @@ impl<T: FileDownloader> RinthDownloader<T> {
     ///
     /// # Example
     /// ```no_run
-    /// 
+    ///
     /// use uranium_rs::downloaders::{RinthDownloader, Downloader};
     /// use uranium_rs::error::Result;
     ///
     /// # async fn foo() -> Result<()> {
-    /// //                                  FileDownloader to use (mandatory)
+    /// //                                      Downloader to use (mandatory)
     /// //                                           vvvvvvvvvv
     /// let mut rinth_downloader = RinthDownloader::<Downloader>::new(
     ///     "/my_modpack/path",
@@ -83,22 +84,16 @@ impl<T: FileDownloader> RinthDownloader<T> {
         downloader.add_objects(objs);
 
         Ok(RinthDownloader {
-            gen_downloader: downloader,
+            downloader,
             modpack,
         })
     }
 
-    /// Returns the number of mods to download.
-    #[must_use]
-    #[allow(clippy::len_without_is_empty)]
-    pub fn len(&self) -> usize {
-        self.gen_downloader.len()
-    }
 
     /// Returns `true` if there are no mods to download.
     #[must_use]
     pub fn finished(&self) -> bool {
-        self.gen_downloader
+        self.downloader
             .requests_left()
             == 0
     }
@@ -112,20 +107,20 @@ impl<T: FileDownloader> RinthDownloader<T> {
     /// 32/2 = 16
     #[must_use]
     pub fn chunks(&self) -> usize {
-        self.gen_downloader.len() / N_THREADS()
+        self.downloader.len() / num_threads()
     }
 
     /// Returns how many requests chunks are left.
     #[must_use]
     pub fn requests_left(&self) -> usize {
         let left = &self
-            .gen_downloader
+            .downloader
             .requests_left();
 
-        if left.is_multiple_of(N_THREADS()) {
-            left / N_THREADS()
+        if left.is_multiple_of(num_threads()) {
+            left / num_threads()
         } else {
-            left / N_THREADS() + 1
+            left / num_threads() + 1
         }
     }
 
@@ -158,10 +153,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
     }
 
     pub async fn start(&mut self) -> Result<()> {
-        let r = self
-            .gen_downloader
-            .start()
-            .await;
+        let r = self.downloader.start().await;
         remove_temp_pack();
         r
     }
@@ -178,7 +170,7 @@ impl<T: FileDownloader> RinthDownloader<T> {
     /// will return an error with the corresponding variant.
     pub async fn progress(&mut self) -> Result<DownloadState> {
         let r = self
-            .gen_downloader
+            .downloader
             .progress()
             .await;
         if let Ok(DownloadState::Completed) = r {
@@ -223,4 +215,27 @@ impl<T: FileDownloader> RinthDownloader<T> {
         }
         Ok(())
     }
+}
+
+/// # Easy to go function
+///
+/// This function will download the modpack specified by `file_path`
+/// into `destination_path`
+///
+/// If there is no mods and/or config folder inside `destination_path` then they
+/// will be created.
+///
+///
+/// # Errors
+/// This function will return an `UraniumError` in case the download
+/// fails or when one or more paths are wrong.
+pub async fn rinth_pack_download<I: AsRef<Path>, J: AsRef<Path>>(
+    file_path: I,
+    destination_path: J,
+) -> Result<()> {
+    let mut rinth_downloader = RinthDownloader::<Downloader>::new(&file_path, &destination_path)?;
+    rinth_downloader
+        .start()
+        .await?;
+    Ok(())
 }

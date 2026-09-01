@@ -18,7 +18,7 @@ use tokio::task::JoinHandle;
 
 use crate::error::Result;
 use crate::hashes::bytes_to_hex;
-use crate::{code_functions::N_THREADS, error::UraniumError};
+use crate::{code_functions::num_threads, error::UraniumError};
 
 const BUFFER_SIZER: usize = 1024 * 512;
 const MAX_RETRIES: u8 = 3;
@@ -161,7 +161,7 @@ impl std::convert::From<&Library> for DownloadableObject {
         let d = value
             .downloads
             .as_ref()
-            .expect("Library must have downloads to convert to DownloadableObject");
+                .expect("Library must have downloads to convert to DownloadableObject\nYou shouldn't be here traveller");
 
         Self {
             url: d.artifact.url.clone(),
@@ -216,7 +216,7 @@ pub struct Downloader {
     requester: reqwest::Client,
     /// Index of the first not-yet-dispatched file in `files`.
     cursor: usize,
-    /// Semaphore limiting concurrent download tasks to `N_THREADS()`.
+    /// Semaphore limiting concurrent download tasks to `num_threads()`.
     s: Arc<Semaphore>,
     /// In-flight download tasks.
     tasks: FuturesUnordered<JoinHandle<Result<()>>>,
@@ -226,7 +226,7 @@ pub struct Downloader {
 
 impl FileDownloader for Downloader {
     fn new() -> Self {
-        info!("{} available permits", N_THREADS());
+        info!("{} available permits", num_threads());
 
         let client = reqwest::Client::new();
 
@@ -234,7 +234,7 @@ impl FileDownloader for Downloader {
             files: vec![],
             requester: client,
             cursor: 0,
-            s: Arc::new(Semaphore::new(N_THREADS())),
+            s: Arc::new(Semaphore::new(num_threads())),
             tasks: FuturesUnordered::new(),
             retries: HashMap::new(),
         }
@@ -272,7 +272,6 @@ impl FileDownloader for Downloader {
             Err(e) => return Err(e),
             Ok(_) => {}
         }
-        info!("Reporting state");
         Ok(DownloadState::Downloading)
     }
 
@@ -328,10 +327,7 @@ impl Downloader {
         self.cursor += chunk_size;
         let skipped = chunk_size - to_download.len();
         if skipped != 0 {
-            info!(
-                "Skipping {} objs, already exists and hash matches",
-                skipped
-            );
+            info!("Skipping {} objs, already exists and hash matches", skipped);
         }
         to_download
     }
@@ -602,10 +598,7 @@ mod tests {
 
     #[test]
     fn verify_file_hash_none_when_no_hash_provided() {
-        let result = verify_file_hash(
-            &PathBuf::from("/nonexistent/path/file.jar"),
-            &None,
-        );
+        let result = verify_file_hash(&PathBuf::from("/nonexistent/path/file.jar"), &None);
         assert!(matches!(result, Ok(None)));
     }
 

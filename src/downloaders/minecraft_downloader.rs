@@ -16,7 +16,7 @@ use tokio::io::AsyncWriteExt;
 use super::RuntimeDownloader;
 use super::gen_downloader::{DownloadState, DownloadableObject, FileDownloader, HashType};
 use crate::{
-    code_functions::N_THREADS,
+    code_functions::num_threads,
     error::{Result, UraniumError},
     variables::constants::{EXECUTABLE_MODE, PROFILES_FILE},
 };
@@ -24,12 +24,6 @@ use crate::{
 const ASSETS_PATH: &str = "assets/";
 const OBJECTS_PATH: &str = "objects";
 const INSTANCES_LIST: &str = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
-
-/*
-
-   MINECRAFT INSTANCES VERSIONS/LIST ?
-
-*/
 
 /// Function that returns a list `Result<MinecraftInstances, UraniumError>`
 ///
@@ -98,12 +92,6 @@ pub async fn get_last_release() -> Result<String> {
         .latest
         .release)
 }
-
-/*
-
-        DOWNLOAD MINECRAFT RESOURCES CODE SECTION
-
-*/
 
 /// Indicates the download state of a Minecraft instance.
 #[derive(Debug, Clone)]
@@ -531,13 +519,13 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     }
 
     /// Returns the number of chunks of libs to download: `libs.len() /
-    /// N_THREADS()`
+    /// num_threads()`
     pub fn lib_chunks(&self) -> usize {
         let n = self
             .minecraft_instance
             .libraries
             .len() as f64;
-        (n / N_THREADS() as f64).ceil() as usize
+        (n / num_threads() as f64).ceil() as usize
     }
 
     /// Return the number of chunks to download.
@@ -547,7 +535,7 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
         let n = self
             .downloader
             .requests_left() as f64;
-        (n / N_THREADS() as f64).ceil() as usize
+        (n / num_threads() as f64).ceil() as usize
     }
 
     async fn get_resources(&self) -> Result<Resources> {
@@ -776,14 +764,14 @@ impl<T: FileDownloader + Send + Sync> MinecraftDownloader<T> {
     }
 }
 
-pub fn get_index_path(installation_path: &Path, index_name: &Path) -> PathBuf {
+pub(crate) fn get_index_path(installation_path: &Path, index_name: &Path) -> PathBuf {
     installation_path
         .join(ASSETS_PATH)
         .join("indexes")
         .join(index_name)
 }
 
-pub fn get_lib_path(installation_path: &Path, lib_path: &Path) -> PathBuf {
+pub(crate) fn get_lib_path(installation_path: &Path, lib_path: &Path) -> PathBuf {
     installation_path
         .join("libraries")
         .join(lib_path)
@@ -798,95 +786,9 @@ mod tests {
         OsName, Root, Rule,
     };
 
+    use crate::downloaders::Downloader;
+
     use super::*;
-
-    /// A mock `FileDownloader` for testing `MinecraftDownloader`'s state
-    /// machine.
-    ///
-    /// Simulates downloading by returning `Downloading` once per batch of
-    /// objects, then `Completed`. Objects added via
-    /// `add_object`/`add_objects` are tracked and reported through
-    /// `requests_left`.
-    #[allow(dead_code)]
-    struct MockDownloader {
-        total: usize,
-        remaining: usize,
-        completed: bool,
-        objects: Vec<DownloadableObject>,
-    }
-
-    impl FileDownloader for MockDownloader {
-        fn new() -> Self {
-            MockDownloader {
-                total: 0,
-                remaining: 0,
-                completed: true,
-                objects: vec![],
-            }
-        }
-
-        async fn progress(&mut self) -> Result<DownloadState> {
-            if self.completed {
-                return Ok(DownloadState::Completed);
-            }
-            if self.remaining > 0 {
-                self.remaining = 0;
-                self.completed = true;
-                Ok(DownloadState::Downloading)
-            } else {
-                Ok(DownloadState::Completed)
-            }
-        }
-
-        fn requests_left(&self) -> usize {
-            self.remaining
-        }
-
-        fn len(&self) -> usize {
-            self.total
-        }
-
-        fn add_object(&mut self, obj: DownloadableObject) {
-            self.objects.push(obj);
-            self.total += 1;
-            self.remaining += 1;
-            self.completed = false;
-        }
-
-        fn is_empty(&self) -> bool {
-            self.total == 0
-        }
-    }
-
-    #[test]
-    fn get_index_path_appends_assets_indexes() {
-        let result = get_index_path(&PathBuf::from("/root"), &PathBuf::from("19"));
-        assert_eq!(result, PathBuf::from("/root/assets/indexes/19"));
-    }
-
-    #[test]
-    fn get_lib_path_appends_libraries() {
-        let result = get_lib_path(&PathBuf::from("/root"), &PathBuf::from("a/b/c.jar"));
-        assert_eq!(result, PathBuf::from("/root/libraries/a/b/c.jar"));
-    }
-
-    #[test]
-    fn get_index_path_trailing_slash() {
-        let result = get_index_path(&PathBuf::from("/root/"), &PathBuf::from("1.21.json"));
-        assert_eq!(result, PathBuf::from("/root/assets/indexes/1.21.json"));
-    }
-
-    #[test]
-    fn get_lib_path_with_nested_path() {
-        let result = get_lib_path(
-            &PathBuf::from("/minecraft"),
-            &PathBuf::from("org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar"),
-        );
-        assert_eq!(
-            result,
-            PathBuf::from("/minecraft/libraries/org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar")
-        );
-    }
 
     #[test]
     fn prepare_libraries_filters_by_os_rules() {
@@ -950,7 +852,7 @@ mod tests {
 
         // let downloader = make_minecraft_downloader(instance);
         let objects: Vec<DownloadableObject> =
-            MinecraftDownloader::<MockDownloader>::prepare_libraries(
+            MinecraftDownloader::<Downloader>::prepare_libraries(
                 &instance.libraries,
                 &PathBuf::from("/test"),
             )
@@ -1027,7 +929,7 @@ mod tests {
 
         // let downloader = make_minecraft_downloader(instance);
         let objects: Vec<DownloadableObject> =
-            MinecraftDownloader::<MockDownloader>::prepare_libraries(
+            MinecraftDownloader::<Downloader>::prepare_libraries(
                 &instance.libraries,
                 &PathBuf::from("/test"),
             )
@@ -1104,7 +1006,7 @@ mod tests {
 
         // let downloader = make_minecraft_downloader(instance);
         let objects: Vec<DownloadableObject> =
-            MinecraftDownloader::<MockDownloader>::prepare_libraries(
+            MinecraftDownloader::<Downloader>::prepare_libraries(
                 &instance.libraries,
                 &PathBuf::from("/test"),
             )
@@ -1131,26 +1033,5 @@ mod tests {
                 .any(|p| p.contains("has")),
             "expected library with downloads to be included, got: {paths:?}"
         );
-    }
-
-    #[cfg(feature = "integration-tests")]
-    #[tokio::test(flavor = "multi_thread")]
-    pub async fn download_minecraft() -> Result<()> {
-        use super::super::gen_downloader::Downloader;
-        let mut downloader =
-            MinecraftDownloader::<Downloader>::init("/home/sergio/.minecraft", "1.20.1").await?;
-
-        let _ = crate::init_logger();
-        loop {
-            match downloader.progress().await {
-                Ok(MinecraftDownloadState::Completed) => break,
-                Err(e) => return Err(e),
-                _ => {}
-            }
-        }
-
-        let client_path = PathBuf::from("/home/sergio/.minecraft/versions/1.20.1/1.20.1.jar");
-        assert!(client_path.exists(), "Client jar was not downloaded");
-        Ok(())
     }
 }

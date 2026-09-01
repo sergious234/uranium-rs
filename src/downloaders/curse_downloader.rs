@@ -6,10 +6,7 @@ use reqwest::Response;
 
 use super::{DownloadableObject, gen_downloader::DownloadState};
 use crate::{
-    FileDownloader,
-    code_functions::{N_THREADS, unzip_temp_pack},
-    error::{Result, UraniumError},
-    variables::constants::{CURSE_JSON, TEMP_DIR},
+    FileDownloader, code_functions::{num_threads, unzip_temp_pack}, downloaders::Downloader, error::{Result, UraniumError}, variables::constants::{CURSE_JSON, TEMP_DIR}
 };
 
 /// This struct is responsible for downloading Curse modpacks.
@@ -137,7 +134,7 @@ impl<T: FileDownloader> CurseDownloader<T> {
     /// 32/2 = 16
     #[must_use]
     pub fn chunks(&self) -> usize {
-        self.gen_downloader.len() / N_THREADS()
+        self.gen_downloader.len() / num_threads()
     }
 
     /// Returns how many requests chunks are left.
@@ -147,10 +144,10 @@ impl<T: FileDownloader> CurseDownloader<T> {
             .gen_downloader
             .requests_left();
 
-        if left.is_multiple_of(N_THREADS()) {
-            left / N_THREADS()
+        if left.is_multiple_of(num_threads()) {
+            left / num_threads()
         } else {
-            left / N_THREADS() + 1
+            left / num_threads() + 1
         }
     }
 
@@ -173,7 +170,7 @@ impl<T: FileDownloader> CurseDownloader<T> {
 impl<T: FileDownloader> CurseDownloader<T> {
     async fn get_mod_responses(curse_req: &reqwest::Client, files_ids: &[String]) -> Vec<Response> {
         let mut responses: Vec<Response> = Vec::with_capacity(files_ids.len());
-        let threads: usize = N_THREADS();
+        let threads: usize = num_threads();
 
         for chunk in files_ids.chunks(threads) {
             let mut requests = Vec::with_capacity(chunk.len());
@@ -227,4 +224,28 @@ impl<T: FileDownloader> CurseDownloader<T> {
         }
         Ok(())
     }
+}
+
+/// # Easy to go function
+///
+/// This function will download the modpack specified by `file_path`
+/// into `destination_path`
+///
+/// If there is no mods and/or config folder inside `destination_path` then they
+/// will be created.
+///
+///
+/// # Errors
+/// This function will return an `UraniumError` in case the download
+/// fails or when one or more paths are wrong.
+pub async fn curse_pack_download<I: AsRef<Path>, J: AsRef<Path>>(
+    file_path: I,
+    destination_path: J,
+) -> Result<()> {
+    let mut curse_downloader =
+        CurseDownloader::<Downloader>::new(&file_path, &destination_path).await?;
+    curse_downloader
+        .start()
+        .await?;
+    Ok(())
 }

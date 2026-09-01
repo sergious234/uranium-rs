@@ -38,98 +38,24 @@
 use std::path::Path;
 
 use downloaders::{
-    CurseDownloader, Downloader, FileDownloader, MinecraftDownloader as MD, RinthDownloader,
+    Downloader, FileDownloader, MinecraftDownloader as MD,
 };
 use error::{Result, UraniumError};
-use log::info;
 pub use mine_data_structs;
-use modpack_maker::{ModpackMaker, State};
+
+
 use variables::constants::*;
 
 pub mod downloaders;
 pub mod error;
 pub mod installation_fixer;
-pub mod modpack_maker;
 pub mod version_checker;
+pub mod modpack_maker;
+
 
 mod code_functions;
 mod hashes;
 mod variables;
-
-/// # Easy to go function
-///
-/// This function will make a Modpack from the
-/// given path.
-///
-/// # Errors
-/// This function will return a `MakeError` in case the modpack can't
-/// be made for any reason.
-pub async fn make_modpack<I: AsRef<Path>, J: AsRef<Path>>(
-    minecraft_path: I,
-    modpack_name: J,
-) -> Result<()> {
-    let mut maker = ModpackMaker::new(&minecraft_path, modpack_name);
-    let mut i = 0;
-    loop {
-        match maker.progress().await {
-            Ok(State::Finish) => return Ok(()),
-            Err(e) => return Err(e),
-            _ => {
-                info!("{}", i);
-                i += 1;
-            }
-        }
-    }
-
-    //ModpackMaker::make(&minecraft_path).await
-}
-
-/// # Easy to go function
-///
-/// This function will download the modpack specified by `file_path`
-/// into `destination_path`
-///
-/// If there is no mods and/or config folder inside `destination_path` then they
-/// will be created.
-///
-///
-/// # Errors
-/// This function will return an `UraniumError` in case the download
-/// fails or when one or more paths are wrong.
-pub async fn curse_pack_download<I: AsRef<Path>, J: AsRef<Path>>(
-    file_path: I,
-    destination_path: J,
-) -> Result<()> {
-    let mut curse_downloader =
-        CurseDownloader::<Downloader>::new(&file_path, &destination_path).await?;
-    curse_downloader
-        .start()
-        .await?;
-    Ok(())
-}
-
-/// # Easy to go function
-///
-/// This function will download the modpack specified by `file_path`
-/// into `destination_path`
-///
-/// If there is no mods and/or config folder inside `destination_path` then they
-/// will be created.
-///
-///
-/// # Errors
-/// This function will return an `UraniumError` in case the download
-/// fails or when one or more paths are wrong.
-pub async fn rinth_pack_download<I: AsRef<Path>, J: AsRef<Path>>(
-    file_path: I,
-    destination_path: J,
-) -> Result<()> {
-    let mut rinth_downloader = RinthDownloader::<Downloader>::new(&file_path, &destination_path)?;
-    rinth_downloader
-        .start()
-        .await?;
-    Ok(())
-}
 
 /// # Easy to go function
 ///

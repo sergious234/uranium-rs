@@ -51,13 +51,14 @@
 //! }
 //! ```
 
-pub use curse_downloader::CurseDownloader;
+pub use curse_downloader::{CurseDownloader, curse_pack_download};
 pub use gen_downloader::{DownloadState, DownloadableObject, Downloader, FileDownloader, HashType};
 pub use minecraft_downloader::{
-    MinecraftDownloadState, MinecraftDownloader, get_index_path, get_last_release,
-    get_last_snapshot, get_lib_path, list_instances,
+    MinecraftDownloadState, MinecraftDownloader, get_last_release,
+    get_last_snapshot, list_instances,
 };
-pub use rinth_downloader::RinthDownloader;
+pub(crate) use minecraft_downloader::{get_index_path, get_lib_path};
+pub use rinth_downloader::{RinthDownloader, rinth_pack_download};
 pub use runtime_downloader::RuntimeDownloader;
 pub use updater::update_modpack;
 
