@@ -1,39 +1,74 @@
-use std::path::PathBuf;
+use std::path::Path;
 
-use uranium_rs::{init_logger, make_modpack};
+use uranium_rs::{make_modpack, modpacks::rinth::ModpackMaker};
 
 const MODS_PATHS: &str = "tests/data/minecraft_test1/";
 
-#[tokio::test]
-async fn make() {
-    println!("{:?}", std::env::current_dir());
-    let pack_name = PathBuf::from("tests/test1.mrpack");
+pub type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-    if let Err(e) = make_modpack("tests/data/minecraft_test1/", &pack_name).await {
-        panic!("Something went wrong when making the modpack {e}");
-    }
-    assert!(std::fs::exists(&pack_name).is_ok_and(|r| r));
-    std::fs::remove_file(&pack_name).unwrap();
+// -- Helpers
+
+fn assert_mrpack_valid(path: &Path) -> Result<()> {
+    assert!(path.exists(), "expected mrpack at {path:?} to exist");
+    let file = std::fs::File::open(path).map_err(|e| format!("open {path:?}: {e}"))?;
+    let zip = zip::ZipArchive::new(file).map_err(|e| format!("invalid zip {path:?}: {e}"))?;
+    let names: Vec<String> = zip
+        .file_names()
+        .map(|s| s.to_string())
+        .collect();
+    assert!(
+        names
+            .iter()
+            .any(|n| n == "modrinth.index.json"),
+        "missing modrinth.index.json in {names:?}"
+    );
+    // overrides/ should exist (even if empty, writer adds directory)
+    assert!(
+        names
+            .iter()
+            .any(|n| n.starts_with("overrides/")),
+        "missing overrides/ in {names:?}"
+    );
+    Ok(())
+}
+
+// -- Tests
+
+#[tokio::test]
+async fn make_with_extension() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let pack = dir
+        .path()
+        .join("test1.mrpack");
+
+    make_modpack(MODS_PATHS, &pack)
+        .await
+        .map_err(|e| format!("make_modpack failed: {e}"))?;
+
+    assert_mrpack_valid(&pack)?;
+    // TempDir auto-cleans on drop
+    Ok(())
 }
 
 #[tokio::test]
-async fn make_and_download_without_ext() {
-    use uranium_rs::modpack_maker::ModpackMaker;
+async fn make_without_extension_appends_mrpack() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let pack_without_ext = dir.path().join("test2");
+    let pack_expected = dir
+        .path()
+        .join("test2.mrpack");
 
-    let pack_name = PathBuf::from("tests/test2");
-    let pack_name_ext = PathBuf::from("tests/test2.mrpack");
+    // -- ModpackMaker should append .mrpack when missing
+    let maker = ModpackMaker::new(MODS_PATHS, &pack_without_ext);
+    maker
+        .finish()
+        .await
+        .map_err(|e| format!("ModpackMaker::finish failed: {e}"))?;
 
-    let _ = init_logger();
-    let maker = ModpackMaker::new(MODS_PATHS, &pack_name);
-    if let Err(e) = maker.finish().await {
-        panic!("Error happened while making the modpack {e}");
-    }
-
-    //if let Err(e) = make_modpack("tests/data/minecraft_test1/", &pack_name).await
-    // {    eprintln!("Error happened while making the modpack {e}");
-    //    return;
-    //}
-    assert!(std::fs::exists(&pack_name_ext).is_ok_and(|r| r));
-
-    std::fs::remove_file(&pack_name_ext).unwrap();
+    assert_mrpack_valid(&pack_expected)?;
+    assert!(
+        !pack_without_ext.exists() || pack_without_ext == pack_expected,
+        "should not create file without extension"
+    );
+    Ok(())
 }

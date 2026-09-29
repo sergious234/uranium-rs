@@ -2,9 +2,10 @@
 
 use std::path::PathBuf;
 
-use uranium_rs::downloaders::{Downloader, MinecraftDownloader};
+use uranium_rs::engine::Downloader;
 use uranium_rs::init_logger;
-use uranium_rs::version_checker::InstallationVerifier;
+use uranium_rs::minecraft::MinecraftDownloader;
+use uranium_rs::minecraft::verify::InstallationVerifier;
 
 const VERSION: &str = "1.21.7";
 const PATH: &str = "./data/minecraft_test1/";

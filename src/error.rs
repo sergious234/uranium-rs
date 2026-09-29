@@ -3,7 +3,7 @@ use serde_json::Error as SerdeError;
 use thiserror::Error;
 use tokio::task::JoinError;
 
-use crate::downloaders::DownloadableObject;
+use crate::engine::DownloadableObject;
 
 pub type Result<T> = std::result::Result<T, UraniumError>;
 

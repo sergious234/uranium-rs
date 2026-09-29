@@ -9,18 +9,20 @@
 //!
 //!
 //! Also, `uranium` provides high modularity level when it comes to downloaders.
-//! Through the [`FileDownloader`](downloaders) trait.
+//! Through the [`FileDownloader`](engine) trait.
 //!
-//! When using downloaders such as [`RinthDownloader`] it takes
-//! a generic parameter `T: FileDownloader`, so **YOU** the user can implement
+//! When using downloaders such as
+//! [`RinthInstaller`](modpacks::rinth::RinthInstaller) it takes
+//! a generic parameter `T: FileDownloader`, so **YOU**, the user, can implement
 //! your own downloader if you dislike mine :( or thinks you can do a faster
 //! one.
 //!
 //! ``` rust no_run
 //! # async fn x() -> uranium_rs::error::Result<()> {
-//! use uranium_rs::downloaders::{Downloader, RinthDownloader};
+//! use uranium_rs::engine::{Downloader, FileDownloader};
+//! use uranium_rs::modpacks::rinth::RinthInstaller;
 //!
-//! let mut rinth = RinthDownloader::<Downloader>::new("path", "destination")?;
+//! let mut rinth = RinthInstaller::<Downloader>::new("path", "destination")?;
 //!
 //! if let Err(e) = rinth.start().await {
 //!     println!("Something went wrong: {e}")
@@ -31,31 +33,37 @@
 //! # }
 //! ```
 //!
+//! # New modular layout (v2.0)
+//!
+//! - `crate::engine` — generic `FileDownloader` trait + `Downloader` +
+//!   `DownloadableObject`
+//! - `crate::common` — shared helpers (`hash`, `fs`, `constants`)
+//! - `crate::config` — `DownloaderConfig` and global thread helpers
+//! - `crate::minecraft` — `MinecraftDownloader` (installer), `verify`
+//!   (InstallationVerifier/Fixer), `runtime`
+//! - `crate::modpacks` — `rinth` (downloader, maker, updater) and `curse`
+//!   (downloader)
 //!
 //! This crate is under development so breaking changes may occur in later
 //! versions, but I'll try to avoid them.
 
+// region:    --- Modules
+
+pub mod common;
+pub mod config;
+pub mod engine;
+pub mod error;
+pub mod minecraft;
+pub mod modpacks;
+
+// endregion: --- Modules
 use std::path::Path;
 
-use downloaders::{
-    Downloader, FileDownloader, MinecraftDownloader as MD,
-};
+use config::{DownloaderConfig, NTHREADS};
+use engine::Downloader;
 use error::{Result, UraniumError};
 pub use mine_data_structs;
-
-
-use variables::constants::*;
-
-pub mod downloaders;
-pub mod error;
-pub mod installation_fixer;
-pub mod version_checker;
-pub mod modpack_maker;
-
-
-mod code_functions;
-mod hashes;
-mod variables;
+use minecraft::MinecraftDownloader as MD;
 
 /// # Easy to go function
 ///
@@ -79,10 +87,23 @@ pub async fn download_minecraft<I: AsRef<Path>>(instance: &str, destination_path
 ///
 /// In case the number of threads can't be updated this function will return
 /// None, in case of success Some(()) is returned.
+///
+/// Deprecated — prefer `DownloaderConfig::with_max_concurrent` or
+/// `Downloader::from_config`.
 pub fn set_threads(t: usize) -> Option<()> {
     let mut aux = NTHREADS.write().ok()?;
     *aux = t;
     Some(())
+}
+
+/// Returns current global thread limit.
+pub fn threads() -> usize {
+    crate::config::num_threads()
+}
+
+/// Creates a `DownloaderConfig` with the given concurrency.
+pub fn downloader_config(max_concurrent: usize) -> DownloaderConfig {
+    DownloaderConfig::new(max_concurrent)
 }
 
 /// Init the logger and make a log.txt file to write logs content.
@@ -134,6 +155,15 @@ pub fn init_logger() -> Result<()> {
     .map_err(|e| UraniumError::OtherWithReason(e.to_string()))?;
     Ok(())
 }
+
+// region:    --- Re-exports for ergonomics
+
+pub use engine::{DownloadState, DownloadableObject, HashType};
+pub use modpacks::curse::curse_pack_download;
+pub use modpacks::rinth::updater::update_modpack;
+pub use modpacks::rinth::{make_modpack, rinth_pack_download};
+
+// endregion: --- Re-exports
 
 #[cfg(test)]
 mod tests {}
