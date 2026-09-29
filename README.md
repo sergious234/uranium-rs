@@ -1,7 +1,5 @@
 # 🛠️ Uranium
 
-<img src="./UraniumLogo.png" width=300>
-
 [API Docs](https://img.shields.io/crates/v/uranium-rs.svg)
 
 
@@ -40,10 +38,10 @@ downloader.start().await;
 
 # Rinth
 
-**Uranium** also can download modpacks with the modrith format with `RinthDownloader`.
+**Uranium** also can download modpacks with the modrith format with `RinthInstaller`.
 
 ``` rust
-RinthDownloader::<Downloader>::new("path/to/modpack", "installation/path")?;
+RinthInstaller::<Downloader>::new("path/to/modpack", "installation/path")?;
 ```
 
 # Curse
