@@ -16,7 +16,7 @@ exclude = ["tests/data/*"]
 reqwest = { version = "0.12.22", features = ["json", "stream"] }
 tokio = { version = "1.46.1", features = ["rt-multi-thread", "macros"] }
 futures-util = "0.3.31"
-mine_data_structs = {path="../mine_data_structs/", features = ["serde"]}
+mine_data_structs = {version="1.0.12", features = ["serde"]}
 sha1 = "0.10.5"
 zip = {version="2.1.5", features=["deflate"]}
 chrono = "0.4.38"

@@ -1129,6 +1129,8 @@ checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 [[package]]
 name = "mine_data_structs"
 version = "1.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ebf1ad276425c8cd30b4ae813a802e67a19f3c19396991d6be2c2b9885fbd4e"
 dependencies = [
  "dirs",
  "indexmap",
